@@ -1,0 +1,125 @@
+package acewem.initials;
+
+import java.util.Hashtable;
+
+import acewem.market.ACEWEMmodel;
+import acewem.market.LSE;
+
+public class InitLSE {
+													/** Number of LSEs*/
+        private int J=3;
+
+//C-O-N-S-T-R-U-C-T-O-R-----------------------------------------------------------------------	 
+   public InitLSE(ACEWEMmodel market){
+	      	   
+	   Hashtable<String, Double> electricityDemand1 = new Hashtable<String, Double>();
+	   Hashtable<String, Double> electricityDemand2 = new Hashtable<String, Double>();
+	   Hashtable<String, Double> electricityDemand3 = new Hashtable<String, Double>();
+	   Hashtable<String, Double> electricityDemand = new Hashtable<String, Double>();
+
+	   for (int i=0; i<J;i++){
+		   if (i == 0) {			   
+			    electricityDemand1.put("0",350.0000);
+			    electricityDemand1.put("1",322.9300);
+			    electricityDemand1.put("2",305.0400);
+			    electricityDemand1.put("3",296.0200);
+			    electricityDemand1.put("4",287.1600);
+			    electricityDemand1.put("5",291.5900);
+			    electricityDemand1.put("6",296.0200);
+			    electricityDemand1.put("7",314.0700);
+			    electricityDemand1.put("8",358.8600);
+			    electricityDemand1.put("9",394.8000);
+			    electricityDemand1.put("10",403.8200);
+			    electricityDemand1.put("11",408.2500);
+			    electricityDemand1.put("12",403.8200);
+			    electricityDemand1.put("13",394.8000);
+			    electricityDemand1.put("14",390.3700);
+			    electricityDemand1.put("15",390.3700);
+			    electricityDemand1.put("16",408.2500);
+			    electricityDemand1.put("17",448.6200);
+			    electricityDemand1.put("18",430.7300);
+			    electricityDemand1.put("19",426.1400);
+			    electricityDemand1.put("20",421.7100);
+			    electricityDemand1.put("21",412.6900);
+			    electricityDemand1.put("22",390.3700);
+			    electricityDemand1.put("23",363.4600);
+			    
+			    electricityDemand = electricityDemand1;
+		  
+			    int id=i+1;
+			    int node = 2;
+			    LSE lse = new LSE("lse"+id, node, electricityDemand);
+			    market.lseList.put(lse.id, lse);
+		   }		   
+		   if (i == 1) {			   
+			    electricityDemand2.put("0",300.0000);
+			    electricityDemand2.put("1",276.8000);
+			    electricityDemand2.put("2",261.4700);
+			    electricityDemand2.put("3",253.7300);
+			    electricityDemand2.put("4",246.1300);
+			    electricityDemand2.put("5",249.9300);
+			    electricityDemand2.put("6",253.7300);
+			    electricityDemand2.put("7",269.2000);
+			    electricityDemand2.put("8",307.6000);
+			    electricityDemand2.put("9",338.4000);
+			    electricityDemand2.put("10",346.1300);
+			    electricityDemand2.put("11",349.9300);
+			    electricityDemand2.put("12",346.1300);
+			    electricityDemand2.put("13",338.4000);
+			    electricityDemand2.put("14",334.6000);
+			    electricityDemand2.put("15",334.6000);
+			    electricityDemand2.put("16",349.9300);
+			    electricityDemand2.put("17",384.5300);
+			    electricityDemand2.put("18",369.2000);
+			    electricityDemand2.put("19",365.2600);
+			    electricityDemand2.put("20",361.4700);
+			    electricityDemand2.put("21",353.7300);
+			    electricityDemand2.put("22",334.6000);
+			    electricityDemand2.put("23",311.5300);
+		  
+			    electricityDemand = electricityDemand2;
+			    
+			    int id=i+1;
+			    int node = 3;
+			    LSE lse = new LSE("lse"+id, node, electricityDemand);
+			    market.lseList.put(lse.id, lse);			   			   
+		   }
+	   		
+	   		if (i == 2) {		   
+	   			electricityDemand3.put("0",250.0000);
+	   			electricityDemand3.put("1",230.6600);
+	   			electricityDemand3.put("2",217.8900);
+		    	electricityDemand3.put("3",211.4400);
+		    	electricityDemand3.put("4",205.1100);
+		    	electricityDemand3.put("5",208.2800);
+		    	electricityDemand3.put("6",211.4400);
+		    	electricityDemand3.put("7",224.3300);
+		    	electricityDemand3.put("8",256.3300);
+		    	electricityDemand3.put("9",282.0000);
+		    	electricityDemand3.put("10",288.4400);
+		    	electricityDemand3.put("11",291.6100);
+		    	electricityDemand3.put("12",288.4400);
+		    	electricityDemand3.put("13",282.0000);
+		    	electricityDemand3.put("14",278.8300);
+		    	electricityDemand3.put("15",278.8300);
+		    	electricityDemand3.put("16",291.6100);
+		    	electricityDemand3.put("17",320.4400);
+		    	electricityDemand3.put("18",307.6700);
+		    	electricityDemand3.put("19",304.3900);
+		    	electricityDemand3.put("20",301.2200);
+		    	electricityDemand3.put("21",294.7800);
+		    	electricityDemand3.put("22",278.8300);
+		    	electricityDemand3.put("23",259.6100);
+	  
+		    	electricityDemand = electricityDemand3;
+		    	
+		    	int id=i+1;
+		    	int node = 4;
+		    	LSE lse = new LSE("lse"+id, node, electricityDemand);
+		    	market.lseList.put(lse.id, lse);		   			   
+	   		}		 
+	   	}
+   }	
+}
+
+	

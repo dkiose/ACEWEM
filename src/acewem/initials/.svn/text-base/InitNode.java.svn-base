@@ -1,0 +1,19 @@
+package acewem.initials;
+
+import java.util.Hashtable;
+
+import acewem.market.ACEWEMmodel;
+
+public class InitNode {
+	 	
+//C-O-N-S-T-R-U-C-T-O-R-----------------------------------------------------------------------	 
+	public InitNode(ACEWEMmodel market){
+		
+		Hashtable<String, Double> nodeData  = new Hashtable<String, Double>();
+			
+		nodeData.put("buses", 5.0);
+		nodeData.put("penalty", 0.05);
+		
+	    market.nodeData = nodeData;
+	}
+}

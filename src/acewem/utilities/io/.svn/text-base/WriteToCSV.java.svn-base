@@ -1,0 +1,57 @@
+package acewem.utilities.io;
+
+import java.io.*;
+
+import org.apache.commons.math3.util.FastMath;
+
+import acewem.market.ACEWEMmodel;
+
+public class WriteToCSV {
+	
+	public WriteToCSV(){
+		try{
+			// Create file 
+			FileWriter fstream = new FileWriter("c:\\test2.csv",false);
+			BufferedWriter out = new BufferedWriter(fstream);
+			out.close();
+		}catch (Exception e){//Catch exception if any
+			System.err.println("Error: " + e.getMessage());
+		}
+		
+	}
+	
+	public void writeToCSV(double[] cumulativeLMP, ACEWEMmodel market)
+	{
+		try{
+			// Create file 
+			FileWriter fstream = new FileWriter("c:\\test2.csv",true);
+			BufferedWriter out = new BufferedWriter(fstream);
+			
+			for (int i = 1; i<cumulativeLMP.length+1; i++)
+			{
+			out.write(Double.toString(cumulativeLMP[i-1]/24));
+			out.append(',');
+			}
+			for (int i = 1; i<cumulativeLMP.length+1; i++)
+			{
+			out.write(Double.toString(market.genCoList.get("genco"+i).getReportedSupplyOffer().get("aR")));
+			out.append(',');
+			}
+			for (int i = 1; i<cumulativeLMP.length+1; i++)
+			{
+			out.write(Double.toString(market.genCoList.get("genco"+i).getReportedSupplyOffer().get("bR")));
+			out.append(',');
+			}
+			for (int i = 1; i<cumulativeLMP.length+1; i++)
+			{
+			out.write(Double.toString(market.genCoList.get("genco"+i).getprofitDaily()));
+			out.append(',');
+			}
+			out.newLine();
+			//Close the output stream
+			out.close();
+		}catch (Exception e){//Catch exception if any
+			System.err.println("Error: " + e.getMessage());
+		}
+	}
+ }

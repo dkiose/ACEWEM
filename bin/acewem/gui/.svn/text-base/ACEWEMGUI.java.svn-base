@@ -1,0 +1,370 @@
+package acewem.gui;
+
+import java.util.Enumeration;
+
+import javax.swing.JFrame;
+
+import acewem.market.ACEWEMmodel;
+import acewem.market.GenCo;
+import acewem.utilities.statistics.graphics.MultiTimeSeriesChartGenerator;
+
+import sim.display.Console;
+import sim.display.Controller;
+import sim.display.GUIState;
+import sim.engine.SimState;
+import sim.engine.Steppable;
+import sim.portrayal.Inspector;
+
+import acewem.utilities.optimisation.OptimalPowerFlow;
+
+/**
+ * 
+ * @author 
+ *
+ */
+public class ACEWEMGUI extends GUIState {
+												/** Object of  ACEWEMmodel */
+	private ACEWEMmodel 	 market;
+												/** Object GUIReporter  ACEWEMmodel */
+	private GUIReporter 	 guiReporter;
+												/** Object of  OptimalPowerFlow */
+	private OptimalPowerFlow opf;
+	
+//C-O-N-S-T-R-U-C-T-O-R-------------------------------------------------------
+  /**
+   * 
+   * @param state - SimState
+   */
+  public ACEWEMGUI(final SimState state) {
+		super(state);
+		market = (ACEWEMmodel) state;
+		//this.guiReporter=new GUIReporter(market);
+		opf = new OptimalPowerFlow(market);
+	}
+
+//------------------------------------------------------------------------------
+   /** this is the first method that is executed once the start button is 
+    * pressed. */
+   public final void start() {
+		super.start();
+		this.updater();
+	}
+
+//------------------------------------------------------------------------------
+  /** This function updates the graphs. */
+  private void updater() {
+	  
+	final Steppable updater = new Steppable() {	
+	private static final long serialVersionUID = 1L;
+
+		public void step(final SimState simState) {
+
+			GenCo gen  = null;
+	        Enumeration<String> e = market.genCoList.keys();
+			int step = (int) market.schedule.getSteps();
+			
+	        while (e.hasMoreElements()) {
+	        	
+	        	gen = market.genCoList.get(e.nextElement());
+	        	//update learning
+	        	gen.learn();
+	        	
+	        	//update graphics Supply offer
+	        	gen.reportedSupplyOfferB.add(step, gen.getbR());
+		        gen.reportedSupplyOfferA.add(step, gen.getaR());
+		        gen.trueSupplyOfferB.add(step, gen.getbT());
+		        gen.trueSupplyOfferA.add(step, gen.getaT());
+		        
+		    	//update graphics GenCo commitment hourly
+/*				for (int h=0; h<market.Hours; h++)
+		    	{
+		    	if(step==422)
+		    	{
+		        gen.commitmentA.add(h,gen.getcommitment(h));
+		        System.out.println(gen.getID()+ ": " + h + " com:"+ gen.getcommitment(h));
+		    		}		                        
+		        }		     
+ */		        
+		       //update graphics Node LMP's cummulative daily
+	        	gen.cumulativelmp.add(step, gen.getlmpCummulative()); 
+	        	gen.cumulativelmptrue.add(step, gen.getlmpCummulativeTrue());
+	        	
+	        	//update graphics GenCo cumulative daily Commitments
+	        	gen.cumulativecommitment.add(step, 
+	        			gen.getcommitmentCumulative());
+	        	gen.cumulativecommitmenttrue.add(step, 
+	        			gen.getcommitmentCumulativeTrue());
+	        	
+	        	//update graphics GenCo daily profits
+	        	gen.dailyprofit.add(step, gen.getprofitDaily());
+	        	gen.dailyprofittrue.add(step, gen.getprofitDailyTrue());
+			}	
+		}		
+	};
+	this.scheduleRepeatingImmediatelyAfter(updater);
+   }
+  
+//----------------------------------------------------------------------------
+  /** this gives the 'model' tab in the console of the GUI.
+   * @return Object of GUIState
+   */
+  public final Object getSimulationInspectedObject() {
+  	return state;
+  }
+  
+//-----------------------------------------------------------------------------
+  /**
+   * Called either at the proper or a premature end to the simulation. If the 
+   * user quits the program, this function may not be called. Ordinarily, you 
+   * wouldn't need to override this hook. Does nothing if the GUIState hasn't 
+   * been started or loaded yet. 
+   */
+  public final void finish() {
+  	super.finish();
+  	this.resetModelParameters();
+  }
+
+//-----------------------------------------------------------------------------
+  /**
+   * Clears (sets to null) the GenCos' true and reported supply data.
+   */
+  public final void resetModelParameters() {
+	this.market.resetModelParameters();	
+  }
+ 
+//------------------------------------------------------------------------------
+  /** Since the GUIState needs to know when the GUI has been launched
+   * the init method is used to register the visualizations
+   * using the c.registerFrame function. 
+   * @param c - the object of Controller
+   */ 
+  public final void init(final Controller c) {
+  	super.init(c);
+ // 	add more here
+     this.prepareRSupplyGraphics(c);
+   //this.prepareGenCoCommitmentGraphics(c);
+   this.prepareCumulativeLMPGraphics(c);
+   this.prepareCumulativeCommitmentsGraphics(c);
+   this.prepareDailyProfitsGraphics(c);
+  }
+ 
+  /**
+   * Prepares the graphics of GenCo's reported supply offer, 
+   * sets the graph and axis names.
+   * @param c - the object of Controller
+   */
+  private void prepareRSupplyGraphics(final Controller c) {
+		GenCo gen  = null;
+   	    MultiTimeSeriesChartGenerator genCoTS = null;
+   	    JFrame genCoFrame = null;
+        Enumeration<String> e = this.market.genCoList.keys();
+        while (e.hasMoreElements()) {
+        	gen = this.market.genCoList.get(e.nextElement());
+        	genCoTS = new MultiTimeSeriesChartGenerator();
+        	genCoTS.setTitle(gen.getID() + ": trueA=" + gen.getaT() 
+        			+ " & trueB=" + gen.getbT());
+        	genCoTS.setXAxisLabel("Simulated day");
+        	genCoTS.addSeries(gen.reportedSupplyOfferA, null, 0);
+        	//genCoTS.addSeries(gen.trueSupplyOfferA,null,0);
+        	genCoTS.addSeries(gen.reportedSupplyOfferB, null, 1);
+        	//genCoTS.addSeries(gen.trueSupplyOfferB,null,1);
+        	genCoFrame = genCoTS.createFrame(this);
+        	genCoFrame.setVisible(true);	
+        	c.registerFrame(genCoFrame);  	
+        }            
+  }
+  
+//----------------------------------------------------------------------------
+  /**
+   * Prepares the graphics of GenCo's power commitment, 
+   * sets the graph and axis names.
+   * @param c - the object of Controller
+   */
+  private void prepareGenCoCommitmentGraphics(final Controller c) {
+		GenCo gen  = null;
+   	    MultiTimeSeriesChartGenerator genCoTS = null;
+   	    JFrame genCoFrame = null;
+        Enumeration<String> e = this.market.genCoList.keys();
+        while (e.hasMoreElements()) {
+        	gen = this.market.genCoList.get(e.nextElement());
+        	genCoTS = new MultiTimeSeriesChartGenerator();
+        	genCoTS.setTitle(gen.getID());  		
+        	genCoTS.setXAxisLabel("Hours");
+        	genCoTS.addSeries(gen.commitmentA, null, 0);
+        	genCoFrame = genCoTS.createFrame(this);
+        	genCoFrame.setVisible(true);	
+        	c.registerFrame(genCoFrame);
+        }      
+  }
+  
+//-------------------------------------------------------------------------------------------------------
+  private void prepareCumulativeLMPGraphics(Controller c) 
+  {
+	  
+	   GenCo gen1  = null;
+       Enumeration<String> e1 = market.genCoList.keys();
+ 	   while(e1.hasMoreElements())
+ 	   {
+		 gen1 = market.genCoList.get(e1.nextElement());
+		 gen1.submitTrueSupplyOffer();
+	   }
+	   opf.solveHourlyPowerFlows();	 
+	   GenCo gen2  = null;
+       Enumeration<String> e2 = market.genCoList.keys();
+  	   while(e2.hasMoreElements())
+ 	   {
+		 gen2 = market.genCoList.get(e2.nextElement());
+		 gen2.updateDailyPerformance();
+		 gen2.lmpCummulativeTrue = gen2.lmpCummulative;
+ 	   }
+	   GenCo gen3  = null;
+ 	   MultiTimeSeriesChartGenerator genCoTS=null;
+ 	   JFrame genCoFrame=null;
+       Enumeration<String> e3 = this.market.genCoList.keys();
+       while(e3.hasMoreElements())
+       {
+      	gen3 = this.market.genCoList.get(e3.nextElement());
+      	genCoTS= new MultiTimeSeriesChartGenerator();
+      	genCoTS.setTitle("Cumulative LMP for "+gen3.getID()+" at Node"+gen3.getNode()+" (no learning)= " + gen3.lmpCummulativeTrue);                    
+      	genCoTS.setXAxisLabel("Simulated day");
+      	genCoTS.addSeries(gen3.cumulativelmptrue,null,0);
+      	genCoTS.addSeries(gen3.cumulativelmp,null,0);
+      	genCoFrame= genCoTS.createFrame(this);
+      	genCoFrame.setVisible(true);	
+      	c.registerFrame(genCoFrame);  	
+       }            
+  }
+  
+//-------------------------------------------------------------------------------------------------------
+  private void prepareCumulativeCommitmentsGraphics(Controller c) 
+  {
+	  
+	   GenCo gen1  = null;
+       Enumeration<String> e1 = market.genCoList.keys();
+ 	   while(e1.hasMoreElements())
+ 	   {
+		 gen1 = market.genCoList.get(e1.nextElement());
+		 gen1.submitTrueSupplyOffer();
+	   }
+	   opf.solveHourlyPowerFlows(); 
+	   GenCo gen2  = null;
+       Enumeration<String> e2 = market.genCoList.keys();
+  	   while(e2.hasMoreElements())
+ 	   {
+		 gen2 = market.genCoList.get(e2.nextElement());
+		 gen2.updateDailyPerformance();
+		 gen2.commitmentCumulativeTrue = gen2.commitmentCumulative;
+	   }
+		GenCo gen3  = null;
+ 	    MultiTimeSeriesChartGenerator genCoTS=null;
+ 	    JFrame genCoFrame=null;
+        Enumeration<String> e3 = this.market.genCoList.keys();
+        while(e3.hasMoreElements())
+        {
+      	gen3 = this.market.genCoList.get(e3.nextElement());
+      	genCoTS= new MultiTimeSeriesChartGenerator();
+      	genCoTS.setTitle(gen3.getID()+ ": Daily electricity dispatch ( no learning) = " + gen3.getcommitmentCumulativeTrue());                    
+      	genCoTS.setXAxisLabel("Simulated day");
+        genCoTS.addSeries(gen3.cumulativecommitmenttrue,null,0);
+        genCoTS.addSeries(gen3.cumulativecommitment,null,0);
+      	genCoFrame= genCoTS.createFrame(this);
+      	genCoFrame.setVisible(true);	
+      	c.registerFrame(genCoFrame);  	
+      }            
+}
+  
+//-------------------------------------------------------------------------------------------------------
+  private void prepareDailyProfitsGraphics(Controller c) 
+  {
+	  
+	   GenCo gen1  = null;
+       Enumeration<String> e1 = market.genCoList.keys();
+ 	   while(e1.hasMoreElements())
+ 	   {
+		 gen1 = market.genCoList.get(e1.nextElement());
+		 gen1.submitTrueSupplyOffer();
+	   }
+	   opf.solveHourlyPowerFlows();	 
+	   GenCo gen2  = null;
+       Enumeration<String> e2 = market.genCoList.keys();
+  	   while(e2.hasMoreElements())
+ 	   {
+		 gen2 = market.genCoList.get(e2.nextElement());
+		 gen2.updateDailyPerformance();
+		 gen2.profitDailyTrue = gen2.profitDaily;
+		 
+ 	   }
+	   GenCo gen3  = null;
+ 	   MultiTimeSeriesChartGenerator genCoTS=null;
+ 	   JFrame genCoFrame=null;
+       Enumeration<String> e3 = this.market.genCoList.keys();
+       while(e3.hasMoreElements())
+       {
+      	gen3 = this.market.genCoList.get(e3.nextElement());
+      	genCoTS= new MultiTimeSeriesChartGenerator();
+      	genCoTS.setTitle("Daily profit of "+gen3.getID()+" (no learning)= " + gen3.profitDailyTrue);                    
+      	genCoTS.setXAxisLabel("Simulated day");
+      	genCoTS.addSeries(gen3.dailyprofittrue,null,0);
+      	genCoTS.addSeries(gen3.dailyprofit,null,0);
+      	genCoFrame= genCoTS.createFrame(this);
+      	genCoFrame.setVisible(true);	
+      	c.registerFrame(genCoFrame);  	
+       }            
+  }
+  
+  
+
+//-------------------------------------------------------------------------------------------------------
+  public static String getName() 
+  { 
+	  return "ACEWEM for Wholesale Electricity Markets"; 
+  }
+  
+//-------------------------------------------------------------------------------------------------------
+  	public void quit() 
+	{
+		super.quit();
+		System.exit(0);
+	}
+  	
+//------------------------------------------------------------------------------------------------------- 
+  	public Inspector getInspector()
+	{
+		Inspector i = super.getInspector(); 
+		i.setVolatile(true); 
+		return i; 
+	}
+  	
+//------------------------------------------------------------------------------------------------------- 
+    //To load 'serializable' states - Fix it!
+	public void load(SimState state) 
+	{
+		super.load(state);		
+	}
+	
+//-------------------------------------------------------------------------------------------------------	
+	public static Object getInfo()
+	{
+		return
+		"<H1> <CENTER>  The ACEWEM Project</CENTER></H1>"+
+		"<CENTER>Agent-based Computational Economics of the Wholesale Electricity Market</CENTER>"+
+		"<br>The ACEWEM framework is an agent-based computational laboratory designed for the systematic study of the UK restructured wholesale electricity market operating over AC transmission grid subject to congestion. In the ACEWEM framework, electricity traders have learning capabilities permitting them to evolve their trading strategies over time. " +
+		"<br><br>Our longer-run goal for the ACEWEM framework is a computational laboratory that rings true to industry participants and policy makers and that can be used as a research and training tool for long-term planning and investment processes in the wholesale electricity markets."+
+		"<p><b>Authors:</b> Daniil Kiose & Dr. Vlasios Voudouris</p>"+
+		"<br><b><CENTER> Centre for International Business and Sustainability (CIBS)</CENTER></b>"+
+		"<b><CENTER> London Metropolitan Business School (LMBS)</CENTER></b>";
+	}
+	
+//-------M-A-I-N---------------------------------------------------------------------------------------
+	/**	*/	
+	public static void main(String[] args)
+	{	 
+	 ACEWEMmodel market = new ACEWEMmodel(System.currentTimeMillis(), true);  
+	 ACEWEMGUI gui =new ACEWEMGUI(market);
+	 Console c = new Console(gui);
+	 c.setBounds(600, 5,500, 450);
+	 c.setVisible(true);
+     market.finish();
+	}
+
+}

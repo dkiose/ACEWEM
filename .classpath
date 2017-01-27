@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="lib" path="C:/Users/Daniil/Dropbox/Eclipse/Java libraries and sources/AMESMarket.V2.05/AMESMarket.V2.05/lib/colt.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Daniil/Dropbox/Eclipse/Java libraries and sources/AMESMarket.V2.05/AMESMarket.V2.05/lib/jcommon-1.0.8.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Daniil/Dropbox/Eclipse/Java libraries and sources/commons-math3-3.1.1.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/GAMLSS"/>
+	<classpathentry kind="lib" path="C:/Users/Daniil/Dropbox/Eclipse/Java libraries and sources/javabuilder.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Daniil/Dropbox/Eclipse/Java libraries and sources/AMESMarket.V2.05/AMESMarket.V2.05/lib/jfreechart-1.0.4.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Daniil/Dropbox/Eclipse/Java libraries and sources/jrelm7.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Daniil/Dropbox/Eclipse/Java libraries and sources/AMESMarket.V2.05/AMESMarket.V2.05/lib/repast.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Daniil/Dropbox/Eclipse/Java libraries and sources/AMESMarket.V2.05/AMESMarket.V2.05/lib/QuadProgJ.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Daniil/Dropbox/Eclipse/Java libraries and sources/REngine.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Daniil/Dropbox/Eclipse/Java libraries and sources/RserveEngine.jar"/>
+	<classpathentry kind="lib" path="C:/gurobi510/win32/lib/gurobi.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Daniil/Dropbox/Eclipse/Java libraries and sources/mason16/mason/jar/mason.16.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/jre7"/>
+	<classpathentry kind="lib" path="C:/Users/Daniil/Dropbox/Eclipse/Java libraries and sources/QuadProgMatlab.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

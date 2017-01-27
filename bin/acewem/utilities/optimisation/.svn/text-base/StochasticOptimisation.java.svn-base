@@ -1,0 +1,238 @@
+package acewem.utilities.optimisation;
+
+import gamlss.algorithm.Gamlss;
+import gamlss.distributions.BCPE;
+import gamlss.distributions.DistributionSettings;
+import gamlss.distributions.GA;
+import gamlss.distributions.GAMLSSFamilyDistribution;
+import gamlss.distributions.GT;
+import gamlss.distributions.JSUo;
+import gamlss.distributions.NO;
+import gamlss.distributions.PE;
+import gamlss.distributions.SST;
+import gamlss.distributions.ST1;
+import gamlss.distributions.ST3;
+import gamlss.distributions.ST4;
+import gamlss.distributions.TF;
+import gamlss.distributions.TF2;
+import gamlss.utilities.oi.CSVFileReader;
+
+import java.util.*;
+
+import org.apache.commons.collections.iterators.IteratorEnumeration;
+import org.apache.commons.math3.analysis.MultivariateFunction;
+import org.apache.commons.math3.linear.ArrayRealVector;
+import org.apache.commons.math3.linear.BlockRealMatrix;
+import org.apache.commons.math3.linear.MatrixUtils;
+import org.apache.commons.math3.linear.RealMatrix;
+import org.apache.commons.math3.optimization.ConvergenceChecker;
+import org.apache.commons.math3.optimization.GoalType;
+import org.apache.commons.math3.optimization.MultivariateMultiStartOptimizer;
+import org.apache.commons.math3.optimization.PointValuePair;
+import org.apache.commons.math3.optimization.SimpleValueChecker;
+import org.apache.commons.math3.optimization.direct.BOBYQAOptimizer;
+import org.apache.commons.math3.optimization.direct.CMAESOptimizer;
+import org.apache.commons.math3.optimization.direct.MultiDirectionalSimplex;
+import org.apache.commons.math3.optimization.direct.NelderMeadSimplex;
+import org.apache.commons.math3.optimization.direct.PowellOptimizer;
+import org.apache.commons.math3.optimization.direct.SimplexOptimizer;
+import org.apache.commons.math3.random.AbstractRandomGenerator;
+import org.apache.commons.math3.random.BitsStreamGenerator;
+import org.apache.commons.math3.random.CorrelatedRandomVectorGenerator;
+import org.apache.commons.math3.random.GaussianRandomGenerator;
+import org.apache.commons.math3.random.JDKRandomGenerator;
+import org.apache.commons.math3.random.MersenneTwister;
+import org.apache.commons.math3.random.NormalizedRandomGenerator;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.random.RandomVectorGenerator;
+import org.apache.commons.math3.util.FastMath;
+
+import acewem.market.ACEWEMmodel;
+
+/**
+ * A class used to find aR and bR by loading the data, 
+ * launching the GAMLSS and solving the optimization problem.
+ */
+public class StochasticOptimisation {
+		
+	public PointValuePair submitReportedOfferStochasticOptimisation(int idNum,  
+			ACEWEMmodel market,	Hashtable<String,Double> trueSupplyOffer, 
+			int DistributionChoice){
+		
+		
+		String fileName = "c:\\testFixed.csv";	
+		 CSVFileReader readData = new CSVFileReader(fileName);
+		 readData.readFile();
+		 ArrayList<String> data = readData.storeValues;
+		 
+		 String fileName2 = "c:\\test2.csv";	
+		 CSVFileReader readData2 = new CSVFileReader(fileName2);
+		 readData2.readFile();
+		 ArrayList<String> data2 = readData2.storeValues;
+		 
+		 
+		 GAMLSSFamilyDistribution distr = null;
+			switch (DistributionChoice) {
+		       case DistributionSettings.NO:
+		    	   distr = new NO();
+		        break;
+		       case DistributionSettings.TF:
+		    	   distr = new TF();
+			        break;
+		       case DistributionSettings.GA:
+		    	   distr = new GA();
+			        break;
+		       case DistributionSettings.GT:
+		    	   distr = new GT();
+			       break;
+		       case DistributionSettings.ST3:
+		    	   distr = new ST3();
+			       break;
+		       case DistributionSettings.ST4:
+		    	   distr = new ST4();
+			       break;
+		       case DistributionSettings.JSUo:
+		    	   distr = new JSUo();
+			       break;
+		       case DistributionSettings.TF2:
+		    	   distr = new TF2();
+			       break;
+		       case DistributionSettings.SST:
+		    	   distr = new SST();
+			       break;
+		       case DistributionSettings.BCPE:
+		    	   distr = new BCPE();
+			       break;
+		       case DistributionSettings.ST1:
+		    	   distr = new ST1();
+			       break;
+		       case DistributionSettings.PE:
+		    	   distr = new PE();
+			       break;
+		       default: 
+					System.err.println("The specific distribution has not been implemented yet in Gamlss!");
+				}
+			
+//System.out.println("GEN: "+idNum+"  "+distr);		
+
+		ArrayRealVector y = new ArrayRealVector(data.size()+data2.size());
+		HashMap<Integer, BlockRealMatrix> designMatrices = new HashMap<Integer, BlockRealMatrix>();
+		 
+		 for (int i = 1; i < distr.getNumberOfDistribtionParameters()+1; i++){
+			 designMatrices.put(i, new BlockRealMatrix(data.size()+data2.size(), 2));
+		 }
+		 	 
+		 int i = 0;
+		 for(i=0;i<data.size();i++)
+		 {
+			String[] line = data.get(i).split(",");
+			y.setEntry(i,  FastMath.log(Double.parseDouble(line[idNum-1])));			
+		 }
+		 
+		 for (int j = 1; j < designMatrices.size()+1; j++){
+			 for(i=0;i<data.size();i++)
+			 {
+				 String[] line = data.get(i).split(",");
+				 designMatrices.get(j).setEntry(i, 0, FastMath.log(Double.parseDouble(line[idNum-1+market.genCoList.size()])));
+				 designMatrices.get(j).setEntry(i, 1, FastMath.log(Double.parseDouble(line[idNum-1+2*market.genCoList.size()])));
+			 }
+		 }
+		 
+System.out.println(data2.size());		 
+		 
+		 for(int k=i;k<(data2.size()+i);k++)
+		 {
+			String[] line = data2.get(k-i).split(",");
+			y.setEntry(k,  FastMath.log(Double.parseDouble(line[idNum-1])));			
+		 }
+		 
+		 for (int j = 1; j < designMatrices.size()+1; j++){
+			 for(int k=i;k<(data2.size()+i);k++)
+			 {
+				 String[] line = data2.get(k-i).split(",");
+				 designMatrices.get(j).setEntry(k, 0, FastMath.log(Double.parseDouble(line[idNum-1+market.genCoList.size()])));
+				 designMatrices.get(j).setEntry(k, 1, FastMath.log(Double.parseDouble(line[idNum-1+2*market.genCoList.size()])));
+			 }
+		 }
+		 
+		 
+		 
+		 
+		 HashMap<Integer, BlockRealMatrix> smoothMatrices = new HashMap<Integer, BlockRealMatrix>();
+		 smoothMatrices.put(DistributionSettings.MU, null);
+		 smoothMatrices.put(DistributionSettings.SIGMA, null);
+		 smoothMatrices.put(DistributionSettings.NU, null);
+		 smoothMatrices.put(DistributionSettings.TAU, null);
+
+System.out.println("GEN: "+idNum+"  "+DistributionChoice);
+		 Gamlss gamlss = new Gamlss(y, designMatrices, smoothMatrices, DistributionChoice);
+
+
+//System.out.println("GEN: "+idNum+"  "+gamlss.getDistr()+"  "+gamlss.getBeta().get(1)+"  "+gamlss.getBeta().get(2));
+			
+		 ObjFunction function = new ObjFunction(gamlss, trueSupplyOffer);
+	 
+		 //choice 2
+		 //PowellOptimizer optimizer = new PowellOptimizer(1e-10, Double.MIN_VALUE);
+		 //PointValuePair pair = optimizer.optimize(10000, function, GoalType.MAXIMIZE, new double[]{trueSupplyOffer.get("aT"), trueSupplyOffer.get("bT")});
+		 
+		 //choice 3
+		 //SimplexOptimizer optimizer = new SimplexOptimizer(1e-10, Double.MIN_VALUE);
+		 //optimizer.setSimplex(new NelderMeadSimplex(new double[] {1,1}));
+		 //PointValuePair pair = optimizer.optimize(10000, function, GoalType.MAXIMIZE, new double[]{trueSupplyOffer.get("aT"),trueSupplyOffer.get("bT")});
+
+	         
+		 //choice 4
+		 //SimplexOptimizer optimizer = new SimplexOptimizer(1e-10, Double.MIN_VALUE);
+		 //optimizer.setSimplex(new MultiDirectionalSimplex(new double[] {0.5, 0.5}));
+		 //PointValuePair pair = optimizer.optimize(10000, function, GoalType.MAXIMIZE, new double[] {trueSupplyOffer.get("aT"), trueSupplyOffer.get("bT")});
+	         
+	 		
+		 //choice 5
+		 BOBYQAOptimizer optimizer = new BOBYQAOptimizer(5);
+		 PointValuePair pair = optimizer.optimize(10000, function, GoalType.MAXIMIZE, new double[] {trueSupplyOffer.get("aT")*25,
+				 trueSupplyOffer.get("bT")*25},new double[] {trueSupplyOffer.get("aT"),trueSupplyOffer.get("bT")},new double[]
+						 {trueSupplyOffer.get("aT")*50,trueSupplyOffer.get("bT")*50});	
+		 
+		 return pair;
+	}
+	
+}		
+
+class ObjFunction implements MultivariateFunction{
+	
+	Hashtable<String, Double> trueSupplyOffer;
+	Gamlss gamlss;
+	
+	 public ObjFunction(Gamlss gamlss,  Hashtable<String, Double> trueSupplyOffer){
+		
+		 this.trueSupplyOffer = trueSupplyOffer;		
+		 this.gamlss = gamlss;
+
+	}		
+	public double value(double[] point) {
+		
+	double marginalCost=(point[0]+point[1]*trueSupplyOffer.get("capTU"));
+		
+	Hashtable<Integer, Double> distributionParametersData = new Hashtable<Integer, Double>();
+	double temp = 0;
+	for (int i=0; i< gamlss.getDistr().getNumberOfDistribtionParameters(); i++)
+	{
+		temp = gamlss.getBeta().get(i+1).getEntry(0)  + gamlss.getBeta().get(i+1).getEntry(1)*point[0]
+                +gamlss.getBeta().get(i+1).getEntry(2)*point[1];
+		
+		distributionParametersData.put(i+1, temp);
+		
+		if(temp <=0)
+		{
+			return 0.0;
+		}
+		
+	}
+//System.out.println((count++)+"___"+distributionParametersData.get(1)+"___"+point[0]+"___"+point[1]+"___ "+gamlss.getBeta().get(1).getEntry(0)+"___ "+gamlss.getBeta().get(1).getEntry(1)+"___"+gamlss.getBeta().get(1).getEntry(2));
+		double p = gamlss.getDistr().p(FastMath.log(marginalCost), distributionParametersData, false, false);
+//System.out.println((marginalCost - (trueSupplyOffer.get("aT")+trueSupplyOffer.get("bT")*trueSupplyOffer.get("capTU")))*p);
+		return FastMath.log((marginalCost - (trueSupplyOffer.get("aT")+trueSupplyOffer.get("bT")*trueSupplyOffer.get("capTU"))))*p;
+		
+	}
+}

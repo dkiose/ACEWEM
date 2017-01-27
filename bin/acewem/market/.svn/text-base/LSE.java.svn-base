@@ -1,0 +1,50 @@
+package acewem.market;
+
+
+import java.util.Hashtable;
+
+import sim.engine.SimState;
+import sim.engine.Steppable;
+
+public class LSE implements Steppable 
+{
+	private static final long serialVersionUID = 1L;
+	
+	public String id;
+	public int node;
+	public Hashtable<String, Double> electricityDemand = new Hashtable<String, Double>();
+
+//C-O-N-S-T-R-U-C-T-O-R--------------------------------------------------------------------------------	
+	/**
+	 * does the LSE needs to know the market that it belongs to?	
+	 * @param id
+	 * @param node
+	 * @param electricitydemand
+	 */
+	public LSE(String id,int node, Hashtable<String, Double> electricitydemand)
+	{
+		this.id=id;
+		this.node=node;
+		this.electricityDemand = electricitydemand;
+	}
+	
+	
+//--------------------------------------------------------------------------------------------------------	
+	public void step(SimState state)
+	{		
+
+	}
+	
+//-GET-&-SET-METHODS------------------------------------------------------------------------------
+	
+	public Hashtable<String, Double> getElectricityDemand() {
+		return electricityDemand;
+	}
+
+	public void setElectricityDemand(Hashtable<String, Double> electricityDemand) {
+		this.electricityDemand = electricityDemand;
+	}  	   	
+}
+	
+
+

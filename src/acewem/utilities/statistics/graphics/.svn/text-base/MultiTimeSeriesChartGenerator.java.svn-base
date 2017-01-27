@@ -1,0 +1,132 @@
+package acewem.utilities.statistics.graphics;
+
+import java.awt.BasicStroke;
+import java.util.ArrayList;
+
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartPanel;
+import org.jfree.chart.axis.AxisLocation;
+import org.jfree.chart.axis.NumberAxis;
+import org.jfree.chart.plot.PlotOrientation;
+import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.renderer.xy.StandardXYItemRenderer;
+import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
+import org.jfree.data.general.AbstractSeriesDataset;
+import org.jfree.data.general.DatasetChangeEvent;
+import org.jfree.data.xy.XYDataset;
+import org.jfree.data.xy.XYSeries;
+import org.jfree.data.xy.XYSeriesCollection;
+
+import sim.util.media.chart.ChartGenerator;
+import sim.util.media.chart.TimeSeriesAttributes;
+
+public class MultiTimeSeriesChartGenerator extends ChartGenerator {
+
+	protected ArrayList<XYSeriesCollection> datasetCollection;
+
+	protected XYSeriesCollection datasets;
+
+	protected ArrayList stoppables = new ArrayList();
+
+	public XYDataset getSeriesDataset() {
+		return datasets;
+	}
+
+	DatasetChangeEvent updateEvent;
+
+	public void update() {
+		if (updateEvent == null)
+			updateEvent = new DatasetChangeEvent(chart.getPlot(), null);
+		chart.getPlot().datasetChanged(updateEvent);
+	}
+
+	public void removeSeries(int index) {
+		
+	}
+
+	public void moveSeries(int index, boolean up) {
+		
+	}
+
+	protected void buildChart() {
+
+		datasetCollection = new ArrayList<XYSeriesCollection>();
+		datasetCollection.add(new XYSeriesCollection());
+
+		datasets = new XYSeriesCollection();
+
+		chart = ChartFactory.createXYLineChart("Untitled Chart",
+				"Untitled X Axis", "Untitled Y Axis", datasetCollection.get(0),
+				PlotOrientation.VERTICAL, false, true, false);
+		((XYLineAndShapeRenderer) (((XYPlot) (chart.getPlot())).getRenderer()))
+				.setDrawSeriesLineAsPath(true);
+
+		chart.setAntiAlias(false);
+
+		chartPanel = new ChartPanel(chart, true);
+		chartPanel.setPreferredSize(new java.awt.Dimension(380, 300));
+		chartPanel.setMinimumDrawHeight(10);
+		chartPanel.setMaximumDrawHeight(2000);
+		chartPanel.setMinimumDrawWidth(20);
+		chartPanel.setMaximumDrawWidth(2000);
+		chartHolder.getViewport().setView(chartPanel);
+
+	}
+
+	/**
+	 * Adds a series, plus a (possibly null) SeriesChangeListener which will
+	 * receive a <i>single</i> event if/when the series is deleted from the
+	 * chart by the user. The series should have a key in the form of a String.
+	 * Returns the series index number.
+	 */
+
+	public int addSeries(final XYSeries series,
+			final org.jfree.data.general.SeriesChangeListener stopper, int axis) {
+
+		datasets.addSeries(series);
+
+		if (axis + 1 > this.datasetCollection.size()) {
+
+			datasetCollection.add(new XYSeriesCollection());
+			this.chart.getXYPlot()
+					.setDataset(axis, datasetCollection.get(axis));
+			NumberAxis tempAxis = new NumberAxis(series.getDescription());
+			this.chart.getXYPlot().setRangeAxis(axis, tempAxis);
+			this.chart.getXYPlot().setRangeAxisLocation(axis,
+					AxisLocation.BOTTOM_OR_RIGHT);
+			this.chart.getXYPlot().mapDatasetToRangeAxis(axis,
+					new Integer(axis));
+
+		}
+
+		TimeSeriesAttributes csa = new TimeSeriesAttributes(this, series,datasets.getSeriesCount(), stopper);
+		datasetCollection.get(axis).addSeries(series);
+		this.chart.getXYPlot().setRenderer(axis, new StandardXYItemRenderer());
+		seriesAttributes.add(csa);
+
+		this.chart.getXYPlot().getRenderer(axis).setSeriesPaint(
+				datasetCollection.get(axis).getSeriesCount() - 1,
+				csa.getStrokeColor());
+		this.chart.getXYPlot().getRenderer(axis).setSeriesStroke(
+				datasetCollection.get(axis).getSeriesCount() - 1,
+				new BasicStroke((float) csa.getThickness(), BasicStroke.CAP_ROUND,
+						BasicStroke.JOIN_ROUND));
+		this.chart.getXYPlot().getRangeAxis(axis).setLabelPaint(
+				csa.getStrokeColor());
+		this.chart.getXYPlot().getRangeAxis(axis).setTickLabelPaint(
+				csa.getStrokeColor());
+		this.chart.getXYPlot().getRangeAxis(axis).setLabel(csa.getSeriesName());
+
+		stoppables.add(stopper);
+		revalidate();
+
+		return datasets.getSeriesCount();
+	}
+	
+	public XYPlot getPlot() {
+		return chart.getXYPlot();
+	}
+
+	
+
+}

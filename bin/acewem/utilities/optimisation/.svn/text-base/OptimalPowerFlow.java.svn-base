@@ -1,0 +1,678 @@
+package acewem.utilities.optimisation;
+
+import acewem.market.ACEWEMmodel;
+import acewem.market.GenCo;
+import acewem.market.LSE;
+import cern.colt.matrix.*;
+import cern.colt.matrix.impl.*;
+
+import java.util.*;
+
+public class OptimalPowerFlow {
+	
+	  // Indices for Node Data parameters: form of {number of buses, Penalty coefficient}												 
+	  private static final int NInd =       0;  				
+	  private static final int PenCoefInd = 1;
+	  	  
+      // Indices for Branch Data parameters: form of {From, To, Branch Capacity, Reactance}
+	  private static final int FromInd =  0;
+	  private static final int ToInd =    1;
+	  private static final int BCapInd =  2;
+	  private static final int ReactInd = 3;
+	  	  
+      // Indices for Supply Offer parameters: form of {a,b,CapL,CapU}
+	  private static final int aInd     = 0;
+	  private static final int bInd     = 1;
+	  private static final int CapLInd  = 2;
+	  private static final int CapUInd  = 3;
+	  
+	  private double[] cumulativeLMP;
+	  private double[] cumulativeCommitment;
+	  												                 	  			                 
+	  														/** Matrix to hold Branch Data:  {From, To, Branch Capacity, Reactance} */
+	  private DoubleMatrix2D branchDataM; 
+	  														/** Matrix to hold Node Data: {number of buses, Penalty coefficient}  */
+	  private DoubleMatrix2D nodeDataM;  
+	  
+	  private DoubleMatrix1D loadProfileM;
+	  
+      // Input for QuadProgJ (G,a,Ceq,beq,Ciq,biq)
+	  														/** Matrix G =blockDiag [U  Wrr] of (I + K − 1)× (I + K − 1) dimension <br>  @see  DC-OPF.IEEEPES2007.JSLT.pdf (pg 18) */ 
+	  private DoubleMatrix2D GM;
+	  														/** Vector a=[A1 ... Ai 0 ... 0] of (I + K − 1) dim, where Ai are a's from trues supply offer/pu <br>  @see  DC-OPF.IEEEPES2007.JSLT.pdf (pg 18) */ 
+	  private DoubleMatrix1D aM;
+	  														/** The equality constraint matrix Ceq =[ II −Br ] of K × (I + K − 1) dim  <br>  @see  DC-OPF.IEEEPES2007.JSLT.pdf (pg 20)*/ 
+	  private DoubleMatrix2D CeqM;
+	  														/** The associated equality constraint vector  <br>  @see  DC-OPF.IEEEPES2007.JSLT.pdf (pg 20) */ 
+	  private DoubleMatrix1D beqM;
+	  														/** The inequality constraint constraint matrix <br>  @see  DC-OPF.IEEEPES2007.JSLT.pdf (pg 20)*/ 
+	  private DoubleMatrix2D CiqM;
+	  														/** The associated inequality constraint vector <br>  @see  DC-OPF.IEEEPES2007.JSLT.pdf (pg 21)*/ 
+	  private DoubleMatrix1D biqM;
+	  
+      // Intermediate input to form (G,a,Ceq,beq,Ciq,biq)
+	  														/** Vector B=[B1 ... Bi] of Ix1 dim, where Bi are b's from trues supply offer/pu */
+	  private DoubleMatrix1D B;  
+	  														/** An attribute matrix U = diag[2B1 , 2B2 , ··· , 2Bi] of Ix1 dim <br>  @see  DC-OPF.IEEEPES2007.JSLT.pdf (pg 17)*/
+	  private DoubleMatrix2D UM;    
+	  														/** Reduced weight matrix  <br>  @see  DC-OPF.IEEEPES2007.JSLT.pdf (pg 17)*/
+	  private DoubleMatrix2D WrrM; 
+	  														/** Vector A=[A1 ... Ai] of Ix1 dim, where Ai are a's from trues supply offer/pu <br>  @see  DC-OPF.IEEEPES2007.JSLT.pdf (pg 18) */
+	  private DoubleMatrix1D A;  
+	  														/** II Matrix represents K Nodes(rows)  and I Generators(columns) located on them */
+	  private DoubleMatrix2D IIM;
+	   														/** Nx1 matrix  of branches' capacities  */
+	  private DoubleMatrix1D BCapM;   
+	  														/** Ix1  matrix of generator's true lower capacity */
+	  private DoubleMatrix1D CapTLM;  
+	  														/** Ix1 matrix of generator's true upper capacity */
+	  private DoubleMatrix1D CapTUM; 
+	  														/** (N×I) zero O matrix <br> @see DC-OPF.IEEEPES2007.JSLT.pdf (pg 21) */ 
+	  private DoubleMatrix2D OtM;
+	  														/** (I x K-1) zero O matrix <br> @see DC-OPF.IEEEPES2007.JSLT.pdf (pg 21)  */
+	  private DoubleMatrix2D OpM;
+	  														/** I×I Identity Matrix <br> @see DC-OPF.IEEEPES2007.JSLT.pdf (pg 21) */
+	  private DoubleMatrix2D IpM;	  														
+															/** True Supply Offer Matrix: {a,b,CapL,CapU} */
+	  private DoubleMatrix2D supplyOfferM; 														
+	  														/** (KxK) Forms Voltage Angle Difference Weight Matrix <br>@see  DC-OPF.IEEEPES2007.JSLT.pdf (pg 16) */
+	  private DoubleMatrix2D VADWM;               
+	  														/** (K-1)x(K-1) Reduced Voltage Angle Difference Weight Matrix <br>@see  DC-OPF.IEEEPES2007.JSLT.pdf (pg 17) */
+	  private DoubleMatrix2D RVADWM;             
+	  														/** (Nx2) Matrix which holds the data for Branches' connections, e.g.  {{1,2},{1,4},{2,3},...} */
+	  private DoubleMatrix2D BranchIndexM;            
+	  														/** (KxK) Negative Susceptance Matrix <br> @see DC-OPF.IEEEPES2007.JSLT.pdf (pg 18) */
+	  private DoubleMatrix2D  NSM;     
+	  														/** (KxK) Bus Admittance Matrix <br> @see DC-OPF.IEEEPES2007.JSLT.pdf (pg 18) */ 
+	  private DoubleMatrix2D BAM;       
+	  														/** Reduced Bus Admittance Matrix <br> @see DC-OPF.IEEEPES2007.JSLT.pdf (pg 19) */
+	  private DoubleMatrix2D RBAM;
+	  														/**(NxK) Adjacency Matrix <br>@see DC-OPF.IEEEPES2007.JSLT.pdf (pg 19)  */
+	  private DoubleMatrix2D AM;         
+	  														/** (NxN)Diagonal Admittance Matrix, where Bkm=1/Xkm <br> @see DC-OPF.IEEEPES2007.JSLT.pdf (pg 21) */
+	  private DoubleMatrix2D dam;  
+	  														/** (N x K-1) Reduced Admittance Matrix <br> @see DC-OPF.IEEEPES2007.JSLT.pdf (pg 19)  */
+	  private DoubleMatrix2D ram;       
+	  														/** A factory producing dense matrices 1D */
+	 
+	  private DoubleFactory1D Matrix1d = DoubleFactory1D.dense; 
+	  														/**A factory producing dense matrices 2D*/
+	  private DoubleFactory2D Matrix2d = DoubleFactory2D.dense; 
+	  														/** Func is for using Colt's methods e.g. diagonal(), identity(), etc. */
+	  private cern.jet.math.Functions Func = cern.jet.math.Functions.functions;
+
+	 
+	  private ACEWEMmodel market;
+	  private QuadProgJ qpj;
+	  
+	  Hashtable<String, Double> lmp = new Hashtable<String, Double>();
+	  
+	 // TEMP
+	  
+//C-O-N-S-T-R-U-C-T-O-R------------------------------------------------------------------------------------------------------------------------------  
+	  public OptimalPowerFlow(ACEWEMmodel mkt)
+	  {
+		  this.market=mkt;  
+	  }
+	  
+//-----------------------------------------------------------------------------------------------------------  	
+	  public void solveHourlyPowerFlows()
+	  {
+		  cumulativeLMP  = new double[market.genCoList.size()];
+		  cumulativeCommitment  = new double[market.genCoList.size()];
+		  for (int hour=0; hour<market.Hours; hour++)
+		  {	
+			buildDataForOPF(hour);    
+	    	solveOPF(hour);
+		  }
+		  market.wrtCSV.writeToCSV(cumulativeLMP, market);
+		  cumulativeLMP = null;
+		  
+		  
+		  //if(market.schedule.getSteps()+1 >= 365 && market.schedule.getSteps()+1 <= 465){
+			  //for (int i=1; i<market.genCoList.size()+1; i++)
+			  //{
+//			  	System.out.println("Gen"+i+" & "+(market.schedule.getSteps()+1)+" & "+market.genCoList.get("genco"+i).getTrueSupplyOffer().get("aT")+" & "+market.genCoList.get("genco"+i).getTrueSupplyOffer().get("bT")+" & "+market.genCoList.get("genco"+i).getTrueSupplyOffer().get("capTU")*24+" & "+market.genCoList.get("genco"+i).getReportedSupplyOffer().get("aR")+" & "+market.genCoList.get("genco"+i).getReportedSupplyOffer().get("bR")+" & "+market.genCoList.get("genco"+i).getReportedSupplyOffer().get("capRU")*24+" & "+cumulativeCommitment[i-1]+" \\"+"\\");
+			 
+//				 System.out.println("Gen"+i+" "+(market.schedule.getSteps()+1)+" "+market.genCoList.get("genco"+i).getTrueSupplyOffer().get("aT")+" "+market.genCoList.get("genco"+i).getTrueSupplyOffer().get("bT")+" "+market.genCoList.get("genco"+i).getTrueSupplyOffer().get("capTU")*24+" "+market.genCoList.get("genco"+i).getReportedSupplyOffer().get("aR")+" "+market.genCoList.get("genco"+i).getReportedSupplyOffer().get("bR")+" "+market.genCoList.get("genco"+i).getReportedSupplyOffer().get("capRU")*24+" "+cumulativeCommitment[i-1]);
+			  
+				//double ttt = market.genCoList.get("genco"+i).getReportedSupplyOffer().get("aR")+market.genCoList.get("genco"+i).getReportedSupplyOffer().get("bR")*market.genCoList.get("genco"+i).getTrueSupplyOffer().get("capTU");
+				  
+//				System.out.println("Gen"+i+" "+cumulativeLMP[i-1]/24.0+" "+ttt+"  "+market.genCoList.get("genco"+i).getTrueSupplyOffer().get("capTU")+"  "+cumulativeCommitment[i-1]/24);
+				
+/*System.out.println((market.schedule.getSteps()+1)+" "+
+		market.genCoList.get("genco"+1).getTrueSupplyOffer().get("aT")+" "+market.genCoList.get("genco"+1).getTrueSupplyOffer().get("bT")+" "+market.genCoList.get("genco"+1).getTrueSupplyOffer().get("capTU")+"  "+market.genCoList.get("genco"+1).getReportedSupplyOffer().get("aR")+" "+market.genCoList.get("genco"+1).getReportedSupplyOffer().get("bR")+" "+
+		market.genCoList.get("genco"+2).getTrueSupplyOffer().get("aT")+" "+market.genCoList.get("genco"+2).getTrueSupplyOffer().get("bT")+" "+market.genCoList.get("genco"+2).getTrueSupplyOffer().get("capTU")+"  "+market.genCoList.get("genco"+2).getReportedSupplyOffer().get("aR")+" "+market.genCoList.get("genco"+2).getReportedSupplyOffer().get("bR")+" "+
+		market.genCoList.get("genco"+3).getTrueSupplyOffer().get("aT")+" "+market.genCoList.get("genco"+3).getTrueSupplyOffer().get("bT")+" "+market.genCoList.get("genco"+3).getTrueSupplyOffer().get("capTU")+"  "+market.genCoList.get("genco"+3).getReportedSupplyOffer().get("aR")+" "+market.genCoList.get("genco"+3).getReportedSupplyOffer().get("bR")+" "+
+		market.genCoList.get("genco"+4).getTrueSupplyOffer().get("aT")+" "+market.genCoList.get("genco"+4).getTrueSupplyOffer().get("bT")+" "+market.genCoList.get("genco"+4).getTrueSupplyOffer().get("capTU")+"  "+market.genCoList.get("genco"+4).getReportedSupplyOffer().get("aR")+" "+market.genCoList.get("genco"+4).getReportedSupplyOffer().get("bR")+" "+
+		market.genCoList.get("genco"+5).getTrueSupplyOffer().get("aT")+" "+market.genCoList.get("genco"+5).getTrueSupplyOffer().get("bT")+" "+market.genCoList.get("genco"+5).getTrueSupplyOffer().get("capTU")+"  "+market.genCoList.get("genco"+5).getReportedSupplyOffer().get("aR")+" "+market.genCoList.get("genco"+5).getReportedSupplyOffer().get("bR"));			  
+*/		
+		  
+/*		  System.out.println((market.schedule.getSteps()+1)+" "+
+				  		  market.genCoList.get("genco"+1).getprofitDailyTrue()+"  "+market.genCoList.get("genco"+1).getprofitDaily()+" "+
+				  		  market.genCoList.get("genco"+2).getprofitDailyTrue()+"  "+market.genCoList.get("genco"+2).getprofitDaily()+" "+
+						  market.genCoList.get("genco"+3).getprofitDailyTrue()+"  "+market.genCoList.get("genco"+3).getprofitDaily()+" "+
+						  market.genCoList.get("genco"+4).getprofitDailyTrue()+"  "+market.genCoList.get("genco"+4).getprofitDaily()+" "+
+						  market.genCoList.get("genco"+5).getprofitDailyTrue()+"  "+market.genCoList.get("genco"+5).getprofitDaily());
+*/			  
+			  //}  
+			  
+			//  }
+	  } 
+	  
+//------------------------------------------------------------------------------------------------------------------------------------------    	
+	  private void buildDataForOPF(int hour){
+		  
+		  double[][] nodeDataA       = new double[1][2];  
+		  double[][] branchDataA	 = new double[market.branchList.size()][4];
+		  double[]   loadProfileA  	 = new double[market.lseList.size()]; 
+		  double[][] supplyOfferA    = new double[market.genCoList.size()][4];	  
+		  //Nodes--------------------------------------------------------------     	       	
+		  nodeDataA[0][0]    = market.nodeData.get("buses");
+		  nodeDataA[0][1]    = market.nodeData.get("penalty");
+      	                	       
+		  //Branches------------------------------------------------------------      	
+      	  for (int n=0; n<market.branchList.size(); n++)
+      	  {
+      		int id = n+1;  		
+      		Hashtable<String, Double> BranchHash = new Hashtable<String, Double>();
+      		BranchHash =(Hashtable) market.branchList.get("branch"+id);
+      		    		
+      		branchDataA[n][0] = ((Double)BranchHash.get("from")).doubleValue();
+      		branchDataA[n][1] = ((Double)BranchHash.get("to")).doubleValue();
+      		branchDataA[n][2] = ((Double)BranchHash.get("capacity")).doubleValue();
+      		branchDataA[n][3] = ((Double)BranchHash.get("reactance")).doubleValue();       	        		        		
+      	  } 
+      	
+      	 //LSEdemand---------------------------------------------------------------        
+         for (int j=0; j<market.lseList.size(); j++)
+      	 {
+      		int id = j+1;
+      		loadProfileA[j] = market.lseList.get("lse"+id).electricityDemand.get(Integer.toString(hour)); 
+      	 }
+
+         //GenCo------------------------------------------------------------------------------       
+      	 for (int i=0; i<market.genCoList.size(); i++)
+      	 {    		
+      		int id = i+1;
+      		GenCo gen = market.genCoList.get("genco"+id);
+
+      	//	SupplyOfferA[i][0] = gen.getTrueSupplyOffer().get("aT");
+      	//	SupplyOfferA[i][1] = gen.getTrueSupplyOffer().get("bT");
+      	//	SupplyOfferA[i][2] = gen.getTrueSupplyOffer().get("capTL");
+      	//	SupplyOfferA[i][3] = gen.getTrueSupplyOffer().get("capTU"); 
+ 
+      		supplyOfferA[i][0] = gen.getReportedSupplyOffer().get("aR");
+      		supplyOfferA[i][1] = gen.getReportedSupplyOffer().get("bR");
+      		supplyOfferA[i][2] = gen.getReportedSupplyOffer().get("capRL");
+      		supplyOfferA[i][3] = gen.getReportedSupplyOffer().get("capRU"); 
+      	 }
+	     convertSItoPU(nodeDataA, branchDataA, loadProfileA, supplyOfferA);
+	  }
+	  
+//------------------------------------------------------------------------------------------------------------------------------------------
+	/** Converts Branch Capacity,Reactance, LSE load profiles, */   
+	  private void convertSItoPU(double[][] nodedata,double[][] branchdata, double[] loadprofile, double[][] supplyoffer)
+	  {		 
+		 acewem.initials.InitParameters init  =   new  acewem.initials.InitParameters();
+		 
+		 double[][] branchDataSI  = new double[market.branchList.size()][4];
+		 double[][] supplyOfferSI = new double[market.genCoList.size()][4];
+		 double[] loadProfileSI   = new double[market.lseList.size()];
+	     double sumCapL=0.0;
+	     double sumCapU=0.0;
+			   
+		 for(int n=0; n<branchdata.length; n++)
+		 {		        
+			   branchDataSI[n][0] = branchdata[n][0];
+			   branchDataSI[n][1] = branchdata[n][1];		    	
+	           // Convert Branch Capacity from SI to PU
+			   branchDataSI[n][2] = branchdata[n][2]/init.getBaseS();		    	
+			   // Convert Reactance from SI to PU, x(pu) = x/Zo = x/(Vo^2/So) = (x*So)/Vo^2
+			   branchDataSI[n][3] = (branchdata[n][3]*init.getBaseS())/(init.getBaseV()*init.getBaseV());
+		 }    
+		 // Convert hourly Load Profile from SI to PU
+		 for(int n=0; n<market.lseList.size(); n++)
+		 {
+		       loadProfileSI[n] = loadprofile[n]/init.getBaseS();
+		 }    
+		 // SI to PU conversion for supply offer and load profile   
+		 for(int i=0; i<market.genCoList.size(); i++)
+		 {
+		        sumCapL+=supplyoffer[i][CapLInd];
+		        sumCapU+=supplyoffer[i][CapUInd];
+		        // Convert A from SI to PU-adjusted
+		        supplyOfferSI[i][aInd]    = supplyoffer[i][aInd]*init.getBaseS();
+		        // Convert B from SI to PU-adjusted
+		        supplyOfferSI[i][bInd]    = supplyoffer[i][bInd]*init.getBaseS()*init.getBaseS();
+		        // Convert CapMin from SI to PU
+		        supplyOfferSI[i][CapLInd] = supplyoffer[i][CapLInd]/init.getBaseS();
+		        // Convert CapMax from SI to PU
+		        supplyOfferSI[i][CapUInd] = supplyoffer[i][CapUInd]/init.getBaseS();		         		 		          
+		  }
+		  nodeDataM    = new DenseDoubleMatrix2D(nodedata);
+		  branchDataM  = new DenseDoubleMatrix2D(branchDataSI);
+		  loadProfileM = new DenseDoubleMatrix1D(loadProfileSI);
+		  supplyOfferM = new DenseDoubleMatrix2D(supplyOfferSI);
+	}	 
+	  
+	//------------------------------------------------------------------------------------------------------------------------------------------    	
+	    /** Calculates parameters for the Optimal Power Flow  */
+	    private void solveOPF(int hour)
+	    {
+		    setBranchIndexM();
+		    
+		    formGM();
+		    formaM();
+		    formCeqM();
+		    formbeqM();
+		    formCiqM();
+		    formbiqM();
+			
+		    //System.out.println("G: " + GM);
+		    //System.out.println("a: " + aM);
+		    //System.out.println("Ceq': " + CeqM.viewDice());
+		    //System.out.println("beq: " + beqM);
+		    //System.out.println("Ciq': " + CiqM.viewDice());
+		    //System.out.println("biq: " + biqM); 
+
+		    qpj = new QuadProgJ(GM,aM,CeqM,beqM,CiqM,biqM);
+
+		    boolean bHaveSolution = qpj.getIsFeasibleAndOptimal();
+
+		    double[] commitment 	= new double[market.genCoList.size()];   		    
+		    double[] voltAngleR     = new double[(int)Math.round(market.nodeData.get("buses"))-1]; 			
+		    double[] voltAngleD 	= new double[(int)Math.round(market.nodeData.get("buses"))-1];           
+		    double[] ineqMultiplier = new double[2*market.branchList.size()+2*market.genCoList.size()];
+		    double[] lmp            = new double[(int)Math.round(market.nodeData.get("buses"))];						
+		    double[] branchFlow     = new double[market.branchList.size()];          
+		    double[] fullVoltAngle  = new double[(int)Math.round(market.nodeData.get("buses"))];      	   
+		    double sumSquaredAngleDifference = 0;
+		    double minTVC                    = 0;  
+
+		    
+		    if(bHaveSolution)  // QuadProgJ has a solution
+		    { 
+		    	// OPF solution for (p_{G1},...,p_{GI}) in SI
+		    	GenCo gen=null;
+		        for(int i=0; i<market.genCoList.size(); i++)
+		        {
+		        	commitment[i] = qpj.getMinX()[i]*market.getBaseS();
+		        	int id = i+1;
+		        	gen = market.genCoList.get("genco"+id);
+		        	gen.getCommitment().put("commit"+hour, commitment[i]);
+		        }	         
+		      
+		        // OPF solution for (delta_2,...,delta_K)
+		        for(int k=market.genCoList.size(); k<market.genCoList.size()+(int)Math.round(market.nodeData.get("buses"))-1; k++)
+		        {
+		        	voltAngleR[k-market.genCoList.size()] = qpj.getMinX()[k];  
+		        }   
+
+		        // Convert voltage angle from radian to degree
+		        for(int k=1; k<(int)Math.round(market.nodeData.get("buses"))-1; k++)
+		        {
+		        	voltAngleD[k] = (voltAngleR[k]*180)/Math.PI;          
+		        }
+
+		        for(int j=0; j<2*market.branchList.size()+2*market.genCoList.size(); j++)
+		        {
+		        	ineqMultiplier[j] = qpj.getIneqMultipiers()[j]/market.getBaseS();
+	     	    }
+		        
+
+		        for(int l=0; l<market.genCoList.size(); l++)
+		        {
+		        	minTVC = minTVC + (A.get(l)/market.getBaseS())*commitment[l]
+		            +(B.get(l)/(market.getBaseS()*market.getBaseS()))*commitment[l]*commitment[l];
+		        }
+
+		        for(int k=1; k<(int)Math.round(market.nodeData.get("buses")); k++)
+		        {
+		        	fullVoltAngle[k] = voltAngleR[k-1];
+
+//System.out.println("node"+(k+1)+"  "+fullVoltAngle[k]);	        	
+		        }
+	        
+	        for(int n=0; n<market.branchList.size(); n++)
+	        {
+	        	branchFlow[n] = (1/branchDataM.get(n,3))*(fullVoltAngle[(int)BranchIndexM.get(n,0)-1]
+	                         - fullVoltAngle[(int)BranchIndexM.get(n,1)-1])*market.getBaseS();
+
+//int id = n+1;	
+//Hashtable<String, Double> ttt = (Hashtable) market.branchList.get("branch"+id);
+//System.out.println("branch"+n+ " flow= "+branchFlow[n]+" capcity=  "+ttt.get("capacity"));
+
+	            sumSquaredAngleDifference = sumSquaredAngleDifference
+	              + Math.pow((fullVoltAngle[(int)BranchIndexM.get(n,0)-1]
+	                          - fullVoltAngle[(int)BranchIndexM.get(n,1)-1]),2);
+	        }
+//System.out.println("----------------------------------------------------------");	        
+	        
+	        // LMP: locational marginal prices in SI
+	        for(int k=0; k<(int)Math.round(market.nodeData.get("buses")); k++)
+	        {	        	       	        		        	
+	        	lmp[k] = qpj.getEqMultipliers()[k]/market.getBaseS();
+	        	//cumulativeLMP[k] = cumulativeLMP[k]+lmp[k];
+	        	
+	            int iidd = k+1;	             
+	            for(int id=1; id<market.genCoList.size()+1; id++)
+	            {
+	                gen = market.genCoList.get("genco"+id);
+	                if (gen.getNode() == iidd)
+	                {
+	            	   gen.localMarginalPrice.put("lmp"+hour, lmp[k]);
+	            	   cumulativeLMP[id-1] = cumulativeLMP[id-1]+lmp[k];
+	                }
+	             }
+	        }
+        
+//System.out.println(hour+"  "+lmp[0]+" "+lmp[1]+" "+lmp[2]+" "+lmp[3]+" "+lmp[4]);
+	    }   
+	}
+	
+//------------------------------------------------------------------------------------------------------------------------------------------    	
+    /** Forms Voltage Angle Difference Weight Matrix
+    *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 16) */	 	
+	private void formGM()
+	{		
+	    formVADWM();
+	    formRVADWM();
+	    
+	    B = new DenseDoubleMatrix1D(supplyOfferM.viewColumn(bInd).toArray());         // Copies converted (/pu) values of b from supply offer into array B
+	    UM = new DenseDoubleMatrix2D(Matrix2d.diagonal(B.assign(Func.mult(2))).toArray()); // Matrix U has 2*B diagonal and 0 for other elements
+	    WrrM = RVADWM;	     
+	    GM = new DenseDoubleMatrix2D(market.genCoList.size()+(int)Math.round(market.nodeData.get("buses"))-1,market.genCoList.size()+(int)Math.round(market.nodeData.get("buses"))-1);
+	    GM.assign(Matrix2d.composeDiagonal(UM,WrrM));
+	 }
+	 
+//------------------------------------------------------------------------------------------------------------------------------------------    
+	 /** Forms Voltage Angle Difference Weight Matrix
+	 *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 16) */ 
+	 private void formVADWM()
+	 {
+		 VADWM = new DenseDoubleMatrix2D((int)Math.round(market.nodeData.get("buses")), (int)Math.round(market.nodeData.get("buses"))); 
+		 for(int n=0; n<market.branchList.size(); n++)
+		 {
+			 VADWM.set((int)BranchIndexM.get(n,0)-1, (int)BranchIndexM.get(n,1)-1, (-2*nodeDataM.get(0,PenCoefInd))); //NOTE: there should be a factor 2 in front of penaltyCoeff		   
+			 VADWM.set((int)BranchIndexM.get(n,1)-1, (int)BranchIndexM.get(n,0)-1, (-2*nodeDataM.get(0,PenCoefInd)));
+		 }
+		    for(int i=0; i<(int)Math.round(market.nodeData.get("buses")); i++)
+		    {
+		      for(int j=0; j<(int)Math.round(market.nodeData.get("buses")); j++)
+		      {
+		        if(j==i)
+		        {
+		          for(int k=0; k<(int)Math.round(market.nodeData.get("buses")); k++)
+		          {
+		            if(k!=i)
+		            {
+		               VADWM.set(i,j, (VADWM.get(i,j)-VADWM.get(i,k)));
+		            }
+		          }
+		        }
+		      }
+		    }
+		  }
+	 
+//------------------------------------------------------------------------------------------------------------------------------------------    
+	 /** Forms Reduced Voltage Angle Difference Weight Matrix by deleting of VADWMatrix first row and first column
+	 *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 17) */ 	
+   	 private void formRVADWM()
+   	 {
+	     RVADWM = new DenseDoubleMatrix2D((int)Math.round(market.nodeData.get("buses"))-1, (int)Math.round(market.nodeData.get("buses"))-1);
+		    for(int i=0; i<(int)Math.round(market.nodeData.get("buses"))-1; i++)
+		    {
+		      for(int j=0; j<(int)Math.round(market.nodeData.get("buses"))-1; j++)
+		      {
+		    	  RVADWM.set(i, j, VADWM.get(i+1, j+1));
+		      }
+		    }
+	  }
+   
+//------------------------------------------------------------------------------------------------------------------------------------------    
+   	 /** Forms Matrix of a coefficients from the supply offer
+   	 *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 20) 
+   	 *  alpha*P+beta*P^2 */ 
+   	 private void formaM()
+   	 {
+         A = new DenseDoubleMatrix1D(supplyOfferM.viewColumn(aInd).toArray());
+         aM = new DenseDoubleMatrix1D(market.genCoList.size()+(int)Math.round(market.nodeData.get("buses"))-1);
+         aM.viewPart(0,market.genCoList.size()).assign(A);
+     }
+   
+//------------------------------------------------------------------------------------------------------------------------------------------    
+   	  /** Forms  Adjacency Matrix
+   	  *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 19) */ 
+      private void formAM()
+      {   
+    	  AM = new DenseDoubleMatrix2D(market.branchList.size(), (int)Math.round(market.nodeData.get("buses")));   	  
+    	  for(int n=0; n<market.branchList.size(); n++)
+    	  {
+    	      for(int k=0; k<(int)Math.round(market.nodeData.get("buses")); k++)
+    	      {
+    	        if(k == BranchIndexM.get(n,0)-1)
+    	        {
+    	        	AM.set(n, k, 1);
+    	        }
+    	        else if (k == BranchIndexM.get(n,1)-1)
+    	        {
+    	        	AM.set(n, k, (-1));
+    	        }
+    	        else
+    	        {
+    	        	AM.set(n, k, 0);
+    	        }
+    	      }
+    	   }
+        }
+      
+//------------------------------------------------------------------------------------------------------------------------------------------          
+     /** Forms Reduced  Adjacency Matrix
+     *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 19) */  
+     private void formRAM()
+       {
+    	  ram = new DenseDoubleMatrix2D(market.branchList.size(), (int)Math.round(market.nodeData.get("buses"))-1);
+    	  ram= AM.viewPart(0,1,market.branchList.size(),(int)Math.round(market.nodeData.get("buses"))-1);
+       }
+      
+ 
+//------------------------------------------------------------------------------------------------------------------------------------------    
+     /** Forms II Matrix which represents K Nodes(rows)  and I Generators(columns) located on them.
+     * <f/> If generator Ii is located at node Ki then the matrix element has value of 1 
+     *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 19) */    
+     private void formIIM()
+      {	   
+    	  IIM = new DenseDoubleMatrix2D((int)Math.round(market.nodeData.get("buses")),market.genCoList.size());
+    	  for(int k=0; k<(int)Math.round(market.nodeData.get("buses")); k++)
+    	  {
+    		 for(int i=0; i<market.genCoList.size(); i++)
+    		 {
+    			int id = i+1;
+    			if(market.genCoList.get("genco"+id).getNode()==k+1)
+    			{
+    			  IIM.set(k,i,1);
+    			}
+    		 }
+    	  }
+       }
+
+//------------------------------------------------------------------------------------------------------------------------------------------      
+     /** Forms Bus Admittance Matrix.
+     *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 18) */    
+     private void formBAM(){
+    	  
+    //	BAM = new double[(int)Math.round(market.nodeData.get("buses"))][(int)Math.round(market.nodeData.get("buses"))];
+    	BAM = new DenseDoubleMatrix2D((int)Math.round(market.nodeData.get("buses")), (int)Math.round(market.nodeData.get("buses")));
+    	  for(int i=0; i<(int)Math.round(market.nodeData.get("buses")); i++){
+    	      for(int j=0; j<(int)Math.round(market.nodeData.get("buses")); j++){
+    	        if(j==i){
+    	          for(int k=0; k<(int)Math.round(market.nodeData.get("buses")); k++){
+    	            if(k!=i){
+    	            	//BAM[i][j] = BAM[i][j] + NSM.get(i,k); 
+    	            	BAM.set(i, j, (BAM.get(i, j)+NSM.get(i,k)));
+    	            }
+    	          }
+    	        }
+    	        else
+    	        //	BAM[i][j] = - NSM.get(i, j);
+    	            BAM.set(i, j, (- NSM.get(i, j)));
+    	      }
+    	    }
+    	  
+    	  
+      }
+
+//------------------------------------------------------------------------------------------------------------------------------------------       
+    /** Forms Reduced Bus Admittance Matrix.
+ 	*  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 18) */
+    private void formRBAM()
+    {
+       RBAM = new DenseDoubleMatrix2D((int)Math.round(market.nodeData.get("buses"))-1, (int)Math.round(market.nodeData.get("buses")));
+       RBAM = BAM.viewPart(1,0,(int)Math.round(market.nodeData.get("buses"))-1,(int)Math.round(market.nodeData.get("buses")));
+    }
+   
+//------------------------------------------------------------------------------------------------------------------------------------------        	    
+    /** Forms Negative Susceptance Matrix.
+    *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 18) */
+    private void formNSM()
+    {
+       NSM = new DenseDoubleMatrix2D((int)Math.round(market.nodeData.get("buses")), (int)Math.round(market.nodeData.get("buses")));
+       for(int n=0; n<market.branchList.size(); n++)
+       {
+    	  NSM.set((int)BranchIndexM.get(n,0)-1, (int)BranchIndexM.get(n,1)-1, (1/branchDataM.viewColumn(ReactInd).toArray()[n]));
+    	  NSM.set((int)BranchIndexM.get(n,1)-1, (int)BranchIndexM.get(n,0)-1, (1/branchDataM.viewColumn(ReactInd).toArray()[n]));
+    	}
+    }
+    	    
+ //------------------------------------------------------------------------------------------------------------------------------------------    
+    /** Forms Equality Constraint Matrix
+    *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 19) */ 
+   // CeqTranspose = (II, -Br'); Ceq = CeqTranspose'; where Br' is rBusAdm here
+   private void formCeqM()
+   {
+	  formNSM();
+	  formBAM();
+	  formRBAM();
+	  formIIM();
+
+      DoubleMatrix2D[][] parts = {{ IIM, RBAM.viewDice().assign(Func.neg)}};
+      DoubleMatrix2D CeqTMatrix = new DenseDoubleMatrix2D((int)Math.round(market.nodeData.get("buses")),market.genCoList.size()+(int)Math.round(market.nodeData.get("buses"))-1);
+      CeqTMatrix.assign(Matrix2d.compose(parts));
+      CeqM = new DenseDoubleMatrix2D(market.genCoList.size()+(int)Math.round(market.nodeData.get("buses"))-1,(int)Math.round(market.nodeData.get("buses")));
+      CeqM.assign(CeqTMatrix.viewDice());
+   
+   }   
+   
+//------------------------------------------------------------------------------------------------------------------------------------------    
+   /** Forms an Equality Constraint Vector 
+   *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 20) */
+   // FDemand = someFunction(atNodeByLSE, loadProfile); beq = FDemand
+   private void formbeqM()
+   {
+      beqM = new DenseDoubleMatrix1D((int)Math.round(market.nodeData.get("buses")));
+      for(int k=0; k<(int)Math.round(market.nodeData.get("buses")); k++)
+         {
+           double p=0;
+           for(int j=0; j<market.lseList.size(); j++)
+           {
+        	   int id = j+1;
+               if(market.lseList.get("lse"+id).node == k+1)
+               {
+                  p = p + loadProfileM.get(j);
+               }
+           }
+           beqM.set(k,p);
+         }    
+   }   
+
+//------------------------------------------------------------------------------------------------------------------------------------------	 
+   /** Forms an Inequality Constraint Matrix Ciq 
+    *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 20) */     
+    private void formCiqM()
+    {
+    	formOtM();
+   	    formOpM();
+   	    formDAM();
+   	    formAM();
+   	    formRAM();
+   	    formIpM();
+ 
+        DoubleMatrix2D[][] parts = 
+           {
+           { OtM,    	   dam.zMult(ram,null)         }, 
+           { OtM,             dam.copy().assign(Func.neg).zMult(ram,null)},          
+           { IpM,                             OpM                   },
+           { IpM.copy().assign(Func.neg),     OpM                  }};
+           
+        DoubleMatrix2D CiqTMatrix = new DenseDoubleMatrix2D(2*market.branchList.size()+2*market.genCoList.size(),market.genCoList.size()+(int)Math.round(market.nodeData.get("buses"))-1);
+        CiqTMatrix.assign(Matrix2d.compose(parts));
+        CiqM = new DenseDoubleMatrix2D(market.genCoList.size()+(int)Math.round(market.nodeData.get("buses"))-1,2*market.branchList.size()+2*market.genCoList.size());
+        CiqM.assign(CiqTMatrix.viewDice()); 
+     }
+       
+//------------------------------------------------------------------------------------------------------------------------------------------	 
+    /** Forms Diagonal Admittance Matrix, where Bkm=1/Xkm 
+	*  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 21) */       
+    private void formDAM()
+    {
+    	dam = new DenseDoubleMatrix2D(market.branchList.size(), market.branchList.size());
+    	dam = Matrix2d.diagonal(branchDataM.copy().viewColumn(ReactInd).assign(Func.inv)); //NOTE: Have to keep .copy(), otherwise reactance will be 1/reactance
+    }
+    	    
+//------------------------------------------------------------------------------------------------------------------------------------------	 
+    /** Forms O an N × I zero Matrix 
+    *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 21) */
+    private void formOtM()
+    {
+        OtM   = new DenseDoubleMatrix2D(market.branchList.size(),market.genCoList.size());     	   
+    }
+ 
+//------------------------------------------------------------------------------------------------------------------------------------------	 
+    /** Forms O an (I x K-1) zero Matrix 
+     *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 21) */
+     private void formOpM()
+     {        
+        OpM = new DenseDoubleMatrix2D(market.genCoList.size(),(int)Math.round(market.nodeData.get("buses"))-1); 
+     }
+       
+//------------------------------------------------------------------------------------------------------------------------------------------	 
+     /** Forms I×I Identity Matrix 
+     *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 21) */
+     private void formIpM()
+     {                   	   
+        IpM = new DenseDoubleMatrix2D(market.genCoList.size(),market.genCoList.size()).assign(Matrix2d.identity(market.genCoList.size()));
+     }  
+
+//------------------------------------------------------------------------------------------------------------------------------------------	 
+	 private void setBranchIndexM()
+	 {
+		 BranchIndexM = branchDataM.viewPart(0,FromInd,market.branchList.size(),2);
+	 }
+	 
+//------------------------------------------------------------------------------------------------------------------------------------------
+	 /** Forms (2N+2I)×1 the associated inequality constraint vector 
+	 *  @see <f/> DC-OPF.IEEEPES2007.JSLT.pdf (pg 21) */
+	 // biq = (-pU, -pU, capL, -capU)
+	 private void formbiqM()
+	 {
+		 BCapM =new DenseDoubleMatrix1D(branchDataM.viewColumn(BCapInd).toArray()); 
+		 CapTLM = new DenseDoubleMatrix1D(supplyOfferM.viewColumn(CapLInd).toArray());
+		 CapTUM = new DenseDoubleMatrix1D(supplyOfferM.viewColumn(CapUInd).toArray());
+		 DoubleMatrix1D[] parts = {BCapM.copy().assign(Func.neg), BCapM.copy().assign(Func.neg),CapTLM, CapTUM.copy().assign(Func.neg)};
+		 biqM = new DenseDoubleMatrix1D(2*market.branchList.size()+2*market.genCoList.size());
+		 biqM.assign(Matrix1d.make(parts));    
+     }
+}
+
+
+
+
+
+
+
+
+
+
+
+

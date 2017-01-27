@@ -1,0 +1,203 @@
+package acewem.initials;
+
+import java.util.Hashtable;
+
+import acewem.market.ACEWEMmodel;
+import acewem.market.GenCo;
+
+
+public class InitGenCo {
+												/** Number of GenCos */
+	  private int I=5;
+
+//C-O-N-S-T-R-U-C-T-O-R-----------------------------------------------------------------------	            
+  public InitGenCo(ACEWEMmodel market){
+	  
+	  Hashtable<String, Double> supplyOffer1  = new Hashtable<String, Double>();
+	  Hashtable<String, Double> supplyOffer2  = new Hashtable<String, Double>();
+	  Hashtable<String, Double> supplyOffer3  = new Hashtable<String, Double>();
+	  Hashtable<String, Double> supplyOffer4  = new Hashtable<String, Double>();
+	  Hashtable<String, Double> supplyOffer5  = new Hashtable<String, Double>();
+	  Hashtable<String, Double> supplyOffer   = new Hashtable<String, Double>();
+	  
+	  Hashtable<String, Double> learningData1  = new Hashtable<String, Double>();
+	  Hashtable<String, Double> learningData2  = new Hashtable<String, Double>();	
+	  Hashtable<String, Double> learningData3  = new Hashtable<String, Double>();
+	  Hashtable<String, Double> learningData4  = new Hashtable<String, Double>();
+	  Hashtable<String, Double> learningData5  = new Hashtable<String, Double>();
+	  Hashtable<String, Double> learningData  = new Hashtable<String, Double>();
+	  
+	  for (int i=0; i<I; i++){				
+	       if (i == 0){
+	    	   
+	    		learningData1.put("propensity", 552949.0600);
+	    		learningData1.put("cooling", 5529.4900);
+	    		learningData1.put("recency", 0.04);
+	    		learningData1.put("experimentation", 0.96);
+	    		learningData1.put("m1", 10.0);
+	    		learningData1.put("m2", 10.0);
+	    		learningData1.put("m3", 1.0);
+	    		learningData1.put("rIMaxL", 0.75);
+	    		learningData1.put("rIMaxU", 0.75);
+	    		learningData1.put("rIMinC", 1.0);
+	    		learningData1.put("slopeStart", 0.0001);
+	    		learningData1.put("rewardSelection", 1.0);	
+	    		
+	    		
+	    		supplyOffer1.put("aT",14.0);
+	    		supplyOffer1.put("bT",0.005);
+	    		supplyOffer1.put("capTL",0.0);
+	    		supplyOffer1.put("capTU",110.0);
+	    		
+	    		supplyOffer  = supplyOffer1; 
+	    		learningData = learningData1;
+	    			    		
+			    int id = i+1;
+			    int node = 1;
+			    double fcost = 0.0;
+			    double money = 1000000.0000;
+			    double priceCap = 1000.0;
+			    int rn = -890999481;
+			    GenCo genco = new GenCo("genco"+id, id, rn, node, fcost, money, priceCap, market, supplyOffer, learningData);
+			    market.genCoList.put(genco.getID(), genco);
+	       }		  
+	       if (i == 1){
+	    	   
+	    		learningData2.put("propensity", 538560.9600);
+	    		learningData2.put("cooling", 5385.6100 );
+	    		learningData2.put("recency", 0.04);
+	    		learningData2.put("experimentation", 0.96);
+	    		learningData2.put("m1", 10.0);
+	    		learningData2.put("m2", 10.0);
+	    		learningData2.put("m3", 1.0);
+	    		learningData2.put("rIMaxL", 0.75);
+	    		learningData2.put("rIMaxU", 0.75);
+	    		learningData2.put("rIMinC", 1.0);
+	    		learningData2.put("slopeStart", 0.0001);
+	    		learningData2.put("rewardSelection", 1.0);
+				
+	    		supplyOffer2.put("aT",15.0);
+	    		supplyOffer2.put("bT",0.006);
+	    		supplyOffer2.put("capTL",0.0);
+	    		supplyOffer2.put("capTU",100.0);
+	    		
+	    		supplyOffer = supplyOffer2; 
+	    		learningData = learningData2;
+	    		
+			    int id = i+1;
+			    int node = 1;
+			    double fcost = 0.0;
+			    double money = 1000000.0000;
+			    double priceCap = 1000.0;
+			    int rn = 1191866609;
+			    GenCo genco = new GenCo("genco"+id, id, rn, node, fcost, money, priceCap, market,supplyOffer, learningData);
+			    market.genCoList.put(genco.getID(), genco);
+
+			}		  
+	    	if (i == 2){
+	    		
+	    		learningData3.put("propensity",4615108.9900 );
+	    		learningData3.put("cooling", 46151.0900);
+	    		learningData3.put("recency", 0.04);
+	    		learningData3.put("experimentation", 0.96);
+	    		learningData3.put("m1", 10.0);
+	    		learningData3.put("m2", 10.0);
+	    		learningData3.put("m3", 1.0);
+	    		learningData3.put("rIMaxL", 0.75);
+	    		learningData3.put("rIMaxU", 0.75);
+	    		learningData3.put("rIMinC", 1.0);
+	    		learningData3.put("slopeStart", 0.0001);
+	    		learningData3.put("rewardSelection", 1.0);
+				
+	    		supplyOffer3.put("aT",25.0);
+	    		supplyOffer3.put("bT",0.01);
+	    		supplyOffer3.put("capTL",0.0);
+	    		supplyOffer3.put("capTU",520.0);
+	    		
+	    		supplyOffer = supplyOffer3;
+	    		learningData = learningData3;
+	    		
+			    int id = i+1;
+			    int node = 3;
+			    double fcost = 0.0;
+			    double money = 1000000.0000;
+			    double priceCap = 1000.0;
+			    int rn = 2047339276;
+			    GenCo genco = new GenCo("genco"+id, id, rn, node, fcost, money, priceCap, market,supplyOffer, learningData);
+			    market.genCoList.put(genco.getID(), genco);
+
+			}				  
+	    	if (i == 3){
+	    		
+	    		learningData4.put("propensity", 2148481.9200);
+	    		learningData4.put("cooling",21484.8200 );
+	    		learningData4.put("recency", 0.04);
+	    		learningData4.put("experimentation", 0.96);
+	    		learningData4.put("m1", 10.0);
+	    		learningData4.put("m2", 10.0);
+	    		learningData4.put("m3", 1.0);
+	    		learningData4.put("rIMaxL", 0.75);
+	    		learningData4.put("rIMaxU", 0.75);
+	    		learningData4.put("rIMinC", 1.0);
+	    		learningData4.put("slopeStart", 0.0001);
+	    		learningData4.put("rewardSelection", 1.0);
+				
+	    		supplyOffer4.put("aT",30.0);
+	    		supplyOffer4.put("bT",0.012);
+	    		supplyOffer4.put("capTL",0.0);
+	    		supplyOffer4.put("capTU",200.0);
+	    		
+	    		supplyOffer = supplyOffer4;
+	    		learningData = learningData4;
+	    		
+			    int id = i+1;
+			    int node = 4;
+			    double fcost = 0.0;
+			    double money = 1000000.0000;
+			    double priceCap = 1000.0;
+			    int rn = -1762080805;
+			    GenCo genco = new GenCo("genco"+id, id, rn, node, fcost, money, priceCap, market,supplyOffer, learningData);
+			    market.genCoList.put(genco.getID(), genco);
+
+			}		 
+	    	if (i == 4){
+	    		
+	    		learningData5.put("propensity", 2099525.7600);
+	    		learningData5.put("cooling", 20995.2600);
+	    		learningData5.put("recency", 0.04);
+	    		learningData5.put("experimentation", 0.96);
+	    		learningData5.put("m1", 10.0);
+	    		learningData5.put("m2", 10.0);
+	    		learningData5.put("m3", 1.0);
+	    		learningData5.put("rIMaxL", 0.75);
+	    		learningData5.put("rIMaxU", 0.75);
+	    		learningData5.put("rIMinC", 1.0);
+	    		learningData5.put("slopeStart", 0.0001);
+	    		learningData5.put("rewardSelection", 1.0);
+				
+	    		supplyOffer5.put("aT",10.0);
+	    		supplyOffer5.put("bT",0.007);
+	    		supplyOffer5.put("capTL",0.0);
+	    		supplyOffer5.put("capTU",600.0);
+	    		
+	    		supplyOffer = supplyOffer5;
+	    		learningData = learningData5;
+	    		
+			    int id = i+1;
+			    int node = 5;
+			    double fcost = 0.0;
+			    double money = 1000000.0000;
+			    double priceCap = 1000.0;
+			    int rn = 433325267;
+			    GenCo genco = new GenCo("genco"+id, id, rn, node, fcost, money, priceCap, market,supplyOffer, learningData);
+			    market.genCoList.put(genco.getID(), genco);
+			 }		  
+	    }	  
+  }	
+}  
+
+
+
+
+
+

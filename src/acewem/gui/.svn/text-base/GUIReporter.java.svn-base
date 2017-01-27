@@ -1,0 +1,46 @@
+package acewem.gui;
+
+import java.util.Enumeration;
+
+import sim.engine.SimState;
+import sim.engine.Steppable;
+import acewem.market.ACEWEMmodel;
+import acewem.market.GenCo;
+
+/**
+ * 
+ * @author Daniil Kiose and Vlasios Voudouris
+ * This class should report and reset the parameters for the graphics
+ */
+public class GUIReporter implements Steppable
+{
+	private ACEWEMmodel market;
+	
+	
+	public GUIReporter(ACEWEMmodel market)
+	{
+		this.market=market;
+	}
+
+	@Override
+	/**
+	 * We need to discuss the structure of ACEWEM. 
+	 */
+	public void step(SimState state) 
+	{
+		int step=(int)market.schedule.getSteps();
+		GenCo gen  = null;
+		 Enumeration<String> e = this.market.genCoList.keys();
+	        while(e.hasMoreElements())
+	        {
+	        	gen = this.market.genCoList.get(e.nextElement());
+	        	gen.reportedSupplyOfferB.add(step,gen.getbR());
+		        gen.reportedSupplyOfferA.add(step,gen.getaR());
+		        gen.trueSupplyOfferB.add(step,gen.getbT());
+		        gen.trueSupplyOfferA.add(step,gen.getaT()); 
+	        }
+	}
+	
+	
+
+}

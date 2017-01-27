@@ -1,0 +1,8 @@
+From,To,Reactance (1/100% on 100 MVA base),Capacity (MVA)
+node1,node2,0.0281,450
+node2,node5,0.0304,250
+node2,node3,0.0064,400
+node3,node4,0.0108,450
+node4,node5,0.0297,340
+node5,node6,0.0297,340
+node1,node6,0.0315,360

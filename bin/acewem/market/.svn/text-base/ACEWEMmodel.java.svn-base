@@ -1,0 +1,215 @@
+package acewem.market;
+
+
+import java.util.*;
+
+import acewem.market.network.ElGrid;
+import acewem.utilities.io.WriteToCSV;
+import acewem.utilities.optimisation.OptimalPowerFlow;
+
+import sim.engine.*;
+
+
+public class ACEWEMmodel extends SimState{
+	
+	private static final long serialVersionUID = 6628525522939315274L;
+								   
+	public Hashtable<String, Object>  lmpAtHour = new Hashtable<String, Object>() ;
+																								/** list of LSEs */
+	public Hashtable<String, LSE>     lseList = new Hashtable<String, LSE>() ;  		
+																								/** list of GenCos */
+	public Hashtable<String, GenCo>   genCoList = new Hashtable<String, GenCo>() ;
+
+	public Hashtable<String, Object>  branchList = new Hashtable<String, Object>() ;
+	
+	public Hashtable<String, Double>  nodeData = new Hashtable<String, Double>() ;
+	
+	public Hashtable<String, Object>  reportedSupplyOffer = new Hashtable<String, Object>();
+																								/** Twenty-four hours */
+	public final int Hours = 24;
+	
+	/** Base apparent power value with default value 100 */
+	private  double baseS=100d;
+	/** Base voltage value with default value 10  */
+	private  double baseV=10d;
+	
+	public boolean isFromGUI=false;
+
+	public ISO iso;
+	
+	public WriteToCSV wrtCSV;
+	
+
+//C-O-N-S-T-R-U-C-T-O-R------------------------------------------------------------------------------------------------------------------------------  
+
+
+	public ACEWEMmodel(long seed)
+	{
+	  this(seed,false);
+	}
+	
+	public ACEWEMmodel(long seed, boolean isFromGUI)
+	{
+	   super(seed);
+	   this.isFromGUI=isFromGUI;
+	   wrtCSV = new WriteToCSV();
+	   initialiseACEWEMmodel();
+	}
+	
+//------------------------------------------------------------------------------------------------------- 
+	
+	public void start()
+	{
+		 //prepare the scheduler of the simulation
+		 super.start();	
+		 GenCo gen  = null;
+	     Enumeration<String> e = genCoList.keys();
+	  
+	     while(e.hasMoreElements())
+	     {
+	        gen = genCoList.get(e.nextElement());      
+	        this.schedule.scheduleRepeating(gen, 0, 1d);
+	      }		
+	     
+	     LSE lse  = null;
+	     Enumeration<String> e2 = lseList.keys();
+	     while(e2.hasMoreElements())
+	     {
+	        	lse = lseList.get(e2.nextElement());
+	        	this.schedule.scheduleRepeating(lse, 1, 1d);
+	     }		     
+	     this.schedule.scheduleRepeating(iso, 2, 1d);
+    }
+	
+//-------------------------------------------------------------------------------------------------------	
+	public void initialiseACEWEMmodel()
+	{
+	     new acewem.initials.InitGenCo(this);
+     	 new acewem.initials.InitLSE(this);
+     	 new acewem.initials.InitBranch(this);
+     	 new acewem.initials.InitNode(this);
+     	 ElGrid elgrid = new ElGrid();
+     	      	 
+//-------GenCo------------------------------------------     	        	      
+     	 GenCo gen  = null;     	
+         for(int i=0; i<genCoList.size(); i++)
+     	 {
+     		int id = i+1;      		     		
+     		gen = genCoList.get("genco"+id);    		 		    		     		
+     		elgrid.addGenCoAtNodeK(gen, gen.getNode()); 
+     	 } 
+     	     	
+//----- LSE----------------------------------------------       	
+        LSE lse =null;
+     	for(int j=0; j<lseList.size(); j++)
+     	{
+     		int id = j+1;
+     		lse = lseList.get("lse"+id); 				
+     		elgrid.addLSEAtNodeK(lse, lse.node);                        	
+     	}
+     	
+//----- ISO-----------------------------------------------    	     		
+     	 iso = new ISO(this);
+	 }   
+	   
+//-------------------------------------------------------------------------------------------------------   
+    /**
+     * We need to discuss the structure of ACEWEM. 
+     */
+    public void  makeGenCoLearn()
+    {
+    	GenCo gen  = null;
+        Enumeration<String> e = genCoList.keys();
+        while(e.hasMoreElements())
+        {
+        	gen = genCoList.get(e.nextElement());
+        	gen.learn();
+        }		 
+    }
+
+//-------------------------------------------------------------------------------------------------------
+	public void resetModelParameters() 
+	{
+		GenCo gen  = null;
+        Enumeration<String> e = genCoList.keys();
+        while(e.hasMoreElements())
+        {
+        	gen = genCoList.get(e.nextElement());
+        	gen.resetLerner();    	
+        	//clear parameters for graphics
+        	gen.reportedSupplyOfferA.clear();
+        	gen.reportedSupplyOfferB.clear();
+        	gen.trueSupplyOfferA.clear();
+        	gen.trueSupplyOfferB.clear();
+        }				
+	} 
+	
+//-GET-&-SET-METHODS------------------------------------------------------------------------------  
+	public double getBaseS() {
+		return baseS;
+	}
+
+	public void setBaseS(double baseS) {
+		this.baseS = baseS;
+	}
+
+	public double getBaseV() {
+		return baseV;
+	}
+
+	public void setBaseV(double baseV) {
+		this.baseV = baseV;
+	}
+
+	public Hashtable<String, LSE> getLseList() {
+		return lseList;
+	}
+
+	public void setLseList(Hashtable<String, LSE> lseList) {
+		this.lseList = lseList;
+	}
+
+	public Hashtable<String, GenCo> getGenCoList() {
+		return genCoList;
+	}
+
+	public void setGenCoList(Hashtable<String, GenCo> genCoList) {
+		this.genCoList = genCoList;
+	}
+
+//-------M-A-I-N---------------------------------------------------------------------------------------
+    public static void main(String[] args){
+        
+   	  ACEWEMmodel market = new ACEWEMmodel(System.currentTimeMillis());       
+         long jobsMax=1;
+         int stepMax=366;
+         long days=0;
+         long year = 0;
+
+         for (int jobs=0; jobs<=jobsMax-1; jobs++)
+ 	      {
+             market.start();	
+       	  if (days >= stepMax){
+       			year = 365*jobs;
+       	  }
+
+          	  do
+   		  {
+          		  if (!market.schedule.step(market))
+          		  {
+          			  System.err.println("Error with the step function of the ACEWEM model");
+          			  break;
+          		  }
+
+          		  market.makeGenCoLearn();          		
+          		  days = market.schedule.getSteps() - year;
+          		System.out.println(days);
+   		  }    		  
+          	  	while (days <= stepMax);          	
+ 	      }                 
+         System.out.println("Done!!!");
+         market.finish();
+         System.exit(0);		
+	}
+	
+}

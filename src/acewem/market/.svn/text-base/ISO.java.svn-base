@@ -1,0 +1,27 @@
+package acewem.market;
+
+
+import acewem.utilities.optimisation.OptimalPowerFlow;
+import sim.engine.*;
+
+public class ISO implements Steppable
+{
+	private static final long serialVersionUID = 6628525522939315274L;
+
+	private OptimalPowerFlow opf;
+	private ACEWEMmodel market;
+	
+	  
+//C-O-N-S-T-R-U-C-T-O-R--------------------------------------------------------------------------------------------------------------------	 
+	  public ISO(ACEWEMmodel mt)
+	  {		
+		opf = new OptimalPowerFlow(mt);
+		this.market=mt;
+	  }
+	
+//-----------------------------------------------------------------------------------------------------------------------------------------
+    public void step(SimState state)
+    {   	    	
+    	opf.solveHourlyPowerFlows();	
+    }
+ }

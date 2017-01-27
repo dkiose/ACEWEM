@@ -1,0 +1,111 @@
+package acewem.initials;
+
+import java.util.Hashtable;
+
+import acewem.market.ACEWEMmodel;
+
+public class InitBranch {
+	 											/** Number of Branches*/
+	 private int N=6;
+
+//C-O-N-S-T-R-U-C-T-O-R-----------------------------------------------------------------------	 
+	 public InitBranch(ACEWEMmodel market){
+		 
+	  
+		  Hashtable<String, Double> branchData1  = new Hashtable<String, Double>();
+		  Hashtable<String, Double> branchData2  = new Hashtable<String, Double>();
+		  Hashtable<String, Double> branchData3  = new Hashtable<String, Double>();
+		  Hashtable<String, Double> branchData4  = new Hashtable<String, Double>();
+		  Hashtable<String, Double> branchData5  = new Hashtable<String, Double>();		  
+		  Hashtable<String, Double> branchData6  = new Hashtable<String, Double>();	
+		  Hashtable<String, Double> branchData  =  new Hashtable<String, Double>();
+	  
+		  for (int i=0;i<N;i++)
+		  {
+			if (i == 0)
+			{
+				branchData1.put("from", 1.0);
+				branchData1.put("to", 2.0);
+				branchData1.put("capacity", 250.0);
+				//branchData1.put("capacity", 19500.0);
+				branchData1.put("reactance", 0.0281);
+
+				
+				branchData = branchData1;
+			    int id = i+1;
+			    
+			    market.branchList.put("branch"+id, branchData);
+			}
+			if (i == 1){		
+				
+				branchData2.put("from", 1.0);
+				branchData2.put("to", 4.0);
+				branchData2.put("capacity", 150.0);
+				//branchData2.put("capacity", 19500.0);
+				branchData2.put("reactance", 0.0304);
+				
+				branchData = branchData2;				
+			    int id = i+1;
+			   
+			    market.branchList.put("branch"+id, branchData);
+			}
+			if (i == 2){
+				
+				branchData3.put("from", 1.0);
+				branchData3.put("to", 5.0);
+				branchData3.put("capacity", 400.0);
+				//branchData3.put("capacity", 19000.0);
+				branchData3.put("reactance", 0.0064);
+				
+				branchData = branchData3;				
+			    int id = i+1;
+			  
+			    market.branchList.put("branch"+id, branchData);
+			}		
+			if (i == 3){
+				
+				branchData4.put("from", 2.0);
+				branchData4.put("to", 3.0);
+				branchData4.put("capacity", 350.0);
+				//branchData4.put("capacity", 19500.0);
+				branchData4.put("reactance", 0.0108);
+				
+				branchData = branchData4;
+								
+			    int id = i+1;
+			   
+			    market.branchList.put("branch"+id, branchData);
+			}
+			if (i == 4){
+				
+				branchData5.put("from", 3.0);
+				branchData5.put("to", 4.0);
+				branchData5.put("capacity", 240.0);
+				//branchData5.put("capacity", 19400.0);
+				branchData5.put("reactance", 0.0297);
+				
+				branchData = branchData5;
+				
+				int id = i+1;
+			   
+			    market.branchList.put("branch"+id, branchData);
+			}
+			if (i == 5){
+				
+				branchData6.put("from", 4.0);
+				branchData6.put("to", 5.0);
+				branchData6.put("capacity", 240.0);
+				//branchData6.put("capacity", 19400.0);
+				branchData6.put("reactance", 0.0297);
+				
+				branchData = branchData6;
+				
+				int id = i+1;
+			   
+			    market.branchList.put("branch"+id, branchData);
+			}
+		}
+  }
+}
+
+	

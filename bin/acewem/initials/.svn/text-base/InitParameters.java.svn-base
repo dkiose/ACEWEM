@@ -1,0 +1,20 @@
+package acewem.initials;
+
+public class InitParameters {
+
+// Default values	
+											/** Base apparent power value (MVA)*/
+		private  double BaseS;
+											/** Base voltage value (kV)*/
+		private  double BaseV;
+		
+//C-O-N-S-T-R-U-C-T-O-R------------------------------------------------------------------------------------------------------------------------------  
+	public InitParameters( ) {
+		
+		        BaseS = 100;
+		        BaseV = 10;
+		  }
+	
+	public  double getBaseS() {return BaseS;}	
+	public  double getBaseV() {return BaseV;}
+}

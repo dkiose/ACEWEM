@@ -1,0 +1,634 @@
+package acewem.market;
+
+
+
+import java.util.ArrayList;
+import java.util.Hashtable;
+import org.apache.commons.math3.optimization.PointValuePair;
+import org.jfree.data.xy.XYSeries;
+
+import sim.engine.SimState;
+import sim.engine.Steppable;
+import edu.iastate.jrelm.core.SimpleAction;
+import edu.iastate.jrelm.rl.rotherev.REPolicy;
+import edu.iastate.jrelm.core.JReLMAgent;
+import edu.iastate.jrelm.rl.ReinforcementLearner;
+import edu.iastate.jrelm.rl.SimpleStatelessLearner;
+import edu.iastate.jrelm.rl.rotherev.variant.VREParameters;
+import gamlss.distributions.DistributionSettings;
+import acewem.utilities.optimisation.StochasticOptimisation;
+
+
+/**
+ * 
+ * Generating Agent class.
+ *
+ */
+public class GenCo implements Steppable, JReLMAgent  {
+	
+	private static final long serialVersionUID = 6628525522939315274L;
+
+													/** Daily Net Earnings = sum of HourlyNetEarning over 24 hours  */
+	private double dailyNetEarnings;   
+													/** dailyProfit = sum of HourlyProfit over 24 hours   */
+	private double dailyProfit;   
+													/** Sum of 24 hourly Revenues */
+	private double dailyRevenue;  
+													/** sum of all GenCos LMPs over a day  */
+	//private double cumulativeLMP;
+	//												/** Fixed cost of production  */
+	private double fixedCost;
+													/**  GenCo's accumulative money holding, money (new) = money(previous) + DailyProfit(new) (array)*/ 
+	private double cumulativeWealth = 0d;
+													/** GenCo's learning choice probability  */
+	private double choiceProbability; 
+													/** GenCo's learning choice propensity  */
+	private double choicePropensity;   
+													/** GenCo's learning choice ID  */
+	private int    choiceID;   
+													/** GenCo's ID  */
+	private String id;
+	
+	private int idNum;
+													/** GenCo's node at which it is located  */
+	private int node;
+													/** True supply offer hashtable{("aT",aT),("bT",bT), ("capTL",capTL),("capTU",capTU)}  <br> @see DynTestAMES.JSLT.pdf */
+	private Hashtable<String, Double> trueSupplyOffer = new Hashtable<String, Double>();
+													
+													/** Hashtable of GenCo's learning parameters{propensity, cooling, recency, experimentation, m1, m2, m3, rIMaxL, rIMaxU, rIMinC, slopeStart, rewardSelection} */
+	private Hashtable<String, Double> learningData = new Hashtable<String, Double>();
+													
+													/** Reported supply offer hashtable{("aR",aR),("bR",bR), ("capRL",capRL),("capRU",capRU)} <br> @see DynTestAMES.JSLT.pdf*/
+	private Hashtable<String, Double> reportedSupplyOffer = new Hashtable<String, Double>();
+													
+													/** Genco's hourly power commitment quantity hashtable{("hour", commitment)} */
+	private Hashtable<String, Double> commitment = new Hashtable<String, Double>();
+													
+												   /** For SimpleStatelessLearner to act as a VRELearner, it must receive a VREParameters object */
+	private VREParameters learningParams;
+								 				   /**SimpleStatelessLearner combines all of JReLM’s pre-built ReinforcementLearners that implement stateless algorithms */
+	private SimpleStatelessLearner learner;
+  
+	public Hashtable<String, Double> localMarginalPrice = new Hashtable<String, Double>();
+		
+	private ArrayList adListNew = new ArrayList(); 
+	
+	//this is public to avoid showing them in the GUI (no need for get() and set() methods). 
+	public  XYSeries reportedSupplyOfferB;
+	public  XYSeries reportedSupplyOfferA;
+	public  XYSeries trueSupplyOfferB;
+	public  XYSeries trueSupplyOfferA;	
+	public  XYSeries commitmentA;
+	public  XYSeries cumulativelmp;
+	public  XYSeries cumulativelmptrue;
+	public  XYSeries dailyprofit;
+	public  XYSeries dailyprofittrue;
+	public  XYSeries cumulativecommitment;
+	public  XYSeries cumulativecommitmenttrue;
+	private ACEWEMmodel market;
+
+	public double lmpCummulative;
+	public double lmpCummulativeTrue;
+	public double profitDaily;
+	public double profitDailyTrue;
+	public double commitmentCumulative;
+	public double commitmentCumulativeTrue;
+	
+	StochasticOptimisation stchOpt;
+	
+// TEMP---------------------------	
+	
+//C-O-N-S-T-R-U-C-T-O-R-------------------------------------------------------------------------------------------------------------------------------  	
+	public GenCo(String id, int idNum, int randomseed, int node, double fcost, double money, double priceCap, ACEWEMmodel mt, Hashtable truesupplyoffer,Hashtable learningdata){
+		
+		this.id           		= id;
+		this.idNum           	= idNum;
+		this.node         		= node;
+		this.cumulativeWealth   = money;
+		this.fixedCost        	= fcost;
+		this.trueSupplyOffer 	= truesupplyoffer;
+		this.learningData 		= learningdata;
+		this.market       		= mt;
+		
+		stchOpt = new StochasticOptimisation();
+		
+		// Initiates VREParameters with cooling, experimentation, propensity and recency for the Varian Roth-Erev learner.
+		this.learningParams = new VREParameters(learningData.get("cooling"), learningData.get("experimentation"), learningData.get("propensity"), learningData.get("recency"), randomseed);	    		
+		
+		///ArrayList adList = actionDomainConstruction(learningData.get("m1"), learningData.get("m2"), learningData.get("m3"),
+		//											learningData.get("rIMaxL"), learningData.get("rIMaxU"), learningData.get("rIMinC"));		
+		//adListNew = checkActionDomain(adList, priceCap);
+		
+		adListNew = actionDomainConstruction();
+		
+		
+		this.learner = new SimpleStatelessLearner(learningParams, adListNew);
+		
+		if(market.isFromGUI)
+		 {
+			 reportedSupplyOfferB 	  = new XYSeries("Reported Supply Offer B");
+			 reportedSupplyOfferA     = new XYSeries("Reported Supply Offer A");
+			 trueSupplyOfferB    	  = new XYSeries("True Supply Offer B");
+			 trueSupplyOfferA    	  = new XYSeries("True Supply Offer A");
+			 commitmentA              = new XYSeries("GenCo's commitment");	
+			 cumulativelmp            = new XYSeries("LMP (learning)");
+			 cumulativelmptrue        = new XYSeries("LMP ( no learning)");
+             dailyprofit			  = new XYSeries("Profit (learning)");
+             dailyprofittrue		  = new XYSeries("Profit ( no learning)");
+			 cumulativecommitment     = new XYSeries("Electricity dispatch (learning)");
+			 cumulativecommitmenttrue = new XYSeries("Electricity dispatch (no learning)");
+		 }    
+	}
+
+	
+//-----------------------------------------------------------------------------------------------------------------------------------------
+	/** This method is called by SimState when the agent is stepped  */   
+	public void step(SimState state)
+	{     	
+		//if(market.schedule.getSteps() <= 365)
+		//if(market.schedule.getSteps() <= 30)
+		//{
+		//submitReportedOfferReinforcementLearning();  //there is no learning at the very beggining!
+		//}
+		//else
+		//{			
+		//double[] DistributionChoice = (double[]) learner.chooseActionRaw();
+			
+			int DistributionChoice = (Integer)learner.chooseActionRaw(); //there is no learning at the very beggining!
+						
+			PointValuePair pair = stchOpt.submitReportedOfferStochasticOptimisation(idNum, market, trueSupplyOffer, DistributionChoice);	
+			
+			reportedSupplyOffer.put("aR", pair.getPoint()[0]);
+			reportedSupplyOffer.put("bR", pair.getPoint()[1]);
+			reportedSupplyOffer.put("capRL", trueSupplyOffer.get("capTL"));
+			reportedSupplyOffer.put("capRU", trueSupplyOffer.get("capTU"));
+			
+//System.out.println(pair.getValue()+" __ "+pair.getPoint()[0]+" __ "+pair.getPoint()[1]);			
+		//}
+	}
+	
+//-------------------------------------------------------------------------------------------------------   
+	/** Returns a new feasible action domain list */
+	private ArrayList checkActionDomain(ArrayList actionList, double priceCap){
+	    ArrayList newActionList=new ArrayList();
+		for(int i=0; i<actionList.size(); i++){
+		    double [] action=(double [])actionList.get(i);
+		    double [] newAction=action.clone();		        
+		    if(!checkOverPriceCap(newAction, priceCap))
+		            newActionList.add(newAction);
+		    }
+		    return newActionList;
+	}	
+	
+//-------------------------------------------------------------------------------------------------------   
+	/** This function is called by the learn method of the agent in order to learn! */
+	public void updateDailyPerformance()
+	{		
+		Hashtable<String, Object> lmpatnode = new Hashtable<String, Object>();
+		double hourlyVariableCost=0d;
+		double hourlyTotalCost=0d;
+		double hourlyProfit=0d;
+		double hourlyNetEarning=0d;
+		double hourlyRevenue=0d;
+    	dailyProfit 	  	    = 0d;
+    	dailyNetEarnings  	    = 0d;
+    	dailyRevenue      	    = 0d;	    	
+    	lmpCummulative  	    = 0d;
+    	commitmentCumulative    = 0d;
+    	profitDaily             = 0d;
+		
+		for (int hour=0; hour<market.Hours; hour++){	
+			hourlyVariableCost = commitment.get("commit"+hour)*trueSupplyOffer.get("aT") + trueSupplyOffer.get("bT") * commitment.get("commit"+hour)*commitment.get("commit"+hour);
+	    	hourlyTotalCost    = hourlyVariableCost + fixedCost;	    	
+	    	hourlyRevenue      = commitment.get("commit"+hour) * localMarginalPrice.get("lmp"+hour);	    	
+	    	hourlyProfit	   = hourlyRevenue - hourlyTotalCost;
+	    	hourlyNetEarning   = hourlyRevenue - hourlyVariableCost;
+	    	
+//if(hour==3){
+//	System.out.println(market.schedule.getSteps()+" "+id+"  "+localMarginalPrice.get("lmp"+hour)+"  "+(reportedSupplyOffer.get("aR")+2*reportedSupplyOffer.get("bR"))+"  "+commitment.get("commit"+hour)+"   "+trueSupplyOffer.get("capTU"));
+//}	    	
+
+	    	dailyProfit 	     += hourlyProfit;
+	    	dailyNetEarnings     += hourlyNetEarning;
+	    	dailyRevenue     	 += hourlyRevenue;
+	    	commitmentCumulative += commitment.get("commit"+hour);
+	    	lmpCummulative 		 += localMarginalPrice.get("lmp"+hour);
+	    	profitDaily          += hourlyProfit;
+		}		
+//if(idNum==4){		
+//System.out.println(market.schedule.getSteps()+"  "+reportedSupplyOffer.get("aR")+" "+reportedSupplyOffer.get("bR"));  		
+//}	
+}	
+	
+
+//------------------------------------------------------------------------------------------------------------------------------------------    
+	/** Rewrites reportedSupplyOffer hashtable with new reported supply offer parameters: aR,bR,capRU,capRL */	
+    private void submitReportedOfferReinforcementLearning()
+	{
+		double[] triplet = (double[]) learner.chooseActionRaw();
+		
+		double aR     = triplet[0];		
+		double bR     = triplet[1];        
+		double capRU  = triplet[2];
+
+		reportedSupplyOffer.put("aR", aR);
+		reportedSupplyOffer.put("bR", bR);
+		reportedSupplyOffer.put("capRL", trueSupplyOffer.get("capTL"));
+		reportedSupplyOffer.put("capRU", capRU);		
+	}
+    
+//------------------------------------------------------------------------------------------------------------------------------------------    
+    /** Rewrites reportedSupplyOffer hashtable with true supply offer parameters: aT,bT,capTU,capTL, which are used only for the day 1 */	
+    public void submitTrueSupplyOffer()
+    { 
+    	reportedSupplyOffer.put("aR", trueSupplyOffer.get("aT"));
+    	reportedSupplyOffer.put("bR", trueSupplyOffer.get("bT"));
+    	reportedSupplyOffer.put("capRU", trueSupplyOffer.get("capTU"));
+    	reportedSupplyOffer.put("capRL", trueSupplyOffer.get("capTL")); 
+    }
+		
+//------------------------------------------------------------------------------------------------------------------------------------------    
+    /** The function checks whether reported supply offer is feasible or not 
+    * @see <f/> DynTestAMES.JSLT.pdf (pg 34)  */    
+    private boolean  checkOverPriceCap(double [] action, double priceCap){
+        double lowerRI   = action[0];
+        double upperRI   = action[1];
+        double upperRCap = action[2];
+        // Step 0: To get capMaxCalculated
+        double capRU  = upperRCap  * (trueSupplyOffer.get("capTU") - trueSupplyOffer.get("capTL")) + trueSupplyOffer.get("capTL");
+
+        // Step 1: To get lR
+        double lR = (trueSupplyOffer.get("aT") + 2*trueSupplyOffer.get("bT")*trueSupplyOffer.get("capTL"))/(1 - lowerRI);
+
+        // Step 2: To get uStart
+        double u = trueSupplyOffer.get("aT") + 2*trueSupplyOffer.get("bT")*capRU;
+        double uStart;
+        if(lR < u){
+          uStart = u;
+        }
+        else{
+          uStart = lR + learningData.get("slopeStart");
+        }
+        if(uStart>=priceCap){
+           return true;           
+        }       
+        // Step 3: To get uR
+        double uR = uStart/(1 - upperRI);
+        // Step 4: To get bReported
+        action[1] = 0.5*((uR - lR)/(capRU - trueSupplyOffer.get("capTL")));
+        // Step 5: To get aReported
+        action[0] = lR - 2*action[1]*trueSupplyOffer.get("capTL");        
+        // for PriceCap
+        double maxPrice=action[0]+2*action[1]*capRU;
+        if(maxPrice>priceCap)
+            action[2]=(priceCap-action[0])/(2*action[1]);
+        else
+            action[2]=capRU;
+
+        return false;
+    }   
+    
+//------------------------------------------------------------------------------------------------------------------------------------------      
+    /** Constructs GenCo's action domain
+     *  @see DynTestAMES.JSLT.pdf */
+/*    private ArrayList<double[]> actionDomainConstruction(double m1, double m2, double m3,
+    													 double rIMaxL, double rIMaxU, double rIMinC){
+    	ArrayList<double[]> adMat = new ArrayList<double[]>();
+    
+    	//double M = m1 * m2 * m3;
+
+    	double inc1 = rIMaxL/(m1 - 1);
+    	double inc2 = rIMaxU/(m2 - 1);
+		double inc3 = (1-rIMinC)/(m3-1);
+	
+		for (double i = 0; i <= rIMaxL; i = i+inc1)
+		{
+			for (double j = 0; j <= rIMaxU; j = j+inc2 )
+			{
+				for(double k = 1-rIMinC; k >= 0; k = k-inc3)
+				{  				
+					double[] alpha = new double[3]; // initialize triplet to zeros
+					alpha[0] = i; 
+					alpha[1] = j; 
+	            	alpha[2] = k +rIMinC ; 
+	            
+	            	adMat.add(alpha);		            	          	
+				}		
+    		}
+		}	
+		return adMat;
+    }
+ */   
+
+//------------------------------------------------------------------------------------------------------------------------------------------      
+/** Constructs GenCo's action domain
+ *  @see DynTestAMES.JSLT.pdf */
+/*private ArrayList<double[]> actionDomainConstruction(){
+	ArrayList<double[]> adMat = new ArrayList<double[]>();
+	
+	adMat.add(new double[]{DistributionSettings.BCPE});		
+	adMat.add(new double[]{DistributionSettings.NO});
+	adMat.add(new double[]{DistributionSettings.TF});
+	adMat.add(new double[]{DistributionSettings.GA});
+	adMat.add(new double[]{DistributionSettings.GT});
+	adMat.add(new double[]{DistributionSettings.ST3});
+	adMat.add(new double[]{DistributionSettings.ST4});
+	adMat.add(new double[]{DistributionSettings.JSUo});
+	adMat.add(new double[]{DistributionSettings.TF2});
+	adMat.add(new double[]{DistributionSettings.SST});
+	adMat.add(new double[]{DistributionSettings.ST1});
+	adMat.add(new double[]{DistributionSettings.PE});
+	return adMat;
+}
+*/
+    
+//------------------------------------------------------------------------------------------------------------------------------------------      
+/** Constructs GenCo's action domain
+*  @see DynTestAMES.JSLT.pdf */
+private ArrayList<Integer> actionDomainConstruction(){
+	ArrayList<Integer> adMat = new ArrayList<Integer>();
+	
+//	adMat.add(DistributionSettings.BCPE);		
+	adMat.add(DistributionSettings.NO);
+	adMat.add(DistributionSettings.TF);
+	adMat.add(DistributionSettings.GA);
+//	adMat.add(DistributionSettings.GT);
+	adMat.add(DistributionSettings.ST3);
+	adMat.add(DistributionSettings.ST4);
+	adMat.add(DistributionSettings.JSUo);
+	adMat.add(DistributionSettings.TF2);
+	adMat.add(DistributionSettings.SST);
+//	adMat.add(DistributionSettings.ST1);
+//	adMat.add(DistributionSettings.PE);
+	return adMat;
+}
+//------------------------------------------------------------------------------------------------------------------------------------------    	
+/** Updates GenCo's accumulative money holding after energy trade - NOT USED*/
+    private void updateWealth(double dailyProfit)
+    {
+    	this.cumulativeWealth = this.cumulativeWealth+dailyProfit;	
+    }
+    
+//------------------------------------------------------------------------------------------------------------------------------------------    	   
+    /** GenCo's learning (updating propensity based on current period DailyProfit) - NOT USED*/
+	public void learn()
+	{  
+		this.updateDailyPerformance(); //update my profitData before I learn
+		this.updateWealth(dailyProfit); //update my money before I learn	
+		SimpleAction lastAction = (SimpleAction) learner.getPolicy().getLastAction();
+	    choiceID = lastAction.getID();
+	    int act = (Integer) lastAction.getAct();
+	    REPolicy policy = (REPolicy)learner.getPolicy();	    
+	    double [] dProbability=policy.getProbabilities();
+	    
+//if (id.equals("genco5")){
+//System.out.println(choiceID+"  "+dProbability[0]+"  "+dProbability[1]+"  "+dProbability[2]+"  "+reportedSupplyOffer.get("aR") +"  "+reportedSupplyOffer.get("bR")+"  "+dailyNetEarnings+"  "+commitmentCumulative+"  "+lmpCummulative);
+//}	 
+
+	    if(learningData.get("rewardSelection")==0)// profit
+	    learner.update(new Double(this.dailyProfit));
+
+	    if(learningData.get("rewardSelection")==1)// net earnings
+	    	learner.update(new Double(this.dailyNetEarnings));
+	
+	    choiceProbability = policy.getProbability(choiceID);
+	    choicePropensity=policy.getPropensity(choiceID);	    
+
+	      // updateActionProbabilities();
+	      //  updateLearningResult();
+	      //  updateDailyNetEarningResult();	    
+	 }
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------    	   
+	/** Sets dailyNetEarnings, dailyProfit, dailyRevenue equal to zero and initiates a new SimpleStatelessLearner */
+	public void resetLerner() 
+	{
+		this.dailyNetEarnings=0d;
+		this.dailyProfit=0d;
+		this.dailyRevenue=0d;
+		this.learner = new SimpleStatelessLearner(learningParams, adListNew);		
+	}
+	
+//------------------------------------------------------------------------------------------------------------------------------------------    	   	
+	/** Calculates and returns daily potential profit for GenCos */	
+	private double getMaxDailyPotentialProfit()
+	{
+	      int iMaxActionIndex=0;
+	      double aRMax=0.0;
+	      double bRMax=0.0;
+	      double capPriceMax=0.0; // for maximum capacity output price
+	      double capMax=0.0;
+	      for(int i=0; i<adListNew.size(); i++)
+	      {
+	          double[] action=(double[])adListNew.get(i);	      
+	          double aR=action[0];
+	          double bR=action[1];
+	          double capMaxCalculated=action[2];
+	          // calculate max price
+	          double maxPrice=aR+2*bR*capMaxCalculated;
+	          if(maxPrice>capPriceMax)
+	          {
+	              aRMax=aR;
+	              bRMax=bR;
+	              capPriceMax=maxPrice;
+	              capMax=capMaxCalculated;
+	              iMaxActionIndex=i;
+	          }
+	      }
+	      //to be checked. 
+	      return capPriceMax*capMax-0.5*(trueSupplyOffer.get("aT")+trueSupplyOffer.get("aT")+2*trueSupplyOffer.get("bT")*trueSupplyOffer.get("capTU"))*trueSupplyOffer.get("capTU");    
+	 }
+		
+//-GET-&-SET-METHODS------------------------------------------------------------------------------	
+	
+	public double getbT() {
+		return trueSupplyOffer.get("bT");
+	}
+
+	public double getcommitment(int hour) {
+		return commitment.get("commit"+hour);
+	}
+	
+	public String getID() {
+		return id;
+	}
+	
+	public int getNode() {
+		return node;
+	}
+
+	public Hashtable<String, Double> getCommitment() {
+		return commitment;
+	}
+
+
+	public Hashtable<String, Double> getTrueSupplyOffer() {
+		return trueSupplyOffer;
+	}
+
+	
+	public Hashtable<String, Double> getReportedSupplyOffer() {
+		return reportedSupplyOffer;
+	}
+
+	public double getaT(){
+		return trueSupplyOffer.get("aT");
+	}
+	
+	public double getaR(){
+		return reportedSupplyOffer.get("aR");			
+	}
+
+	public double getbR(){
+		return reportedSupplyOffer.get("bR");
+	}
+
+	public double getlmpCummulative(){
+		return lmpCummulative;
+	}
+	
+	public double getlmpCummulativeTrue(){
+		return lmpCummulativeTrue;
+	}
+	
+	public double getprofitDaily(){
+		return profitDaily;
+	}
+	
+	public double getprofitDailyTrue(){
+		return profitDailyTrue;
+	}
+	
+	public double getcommitmentCumulative(){
+		return commitmentCumulative;
+	}
+	
+	public double getcommitmentCumulativeTrue(){
+		return commitmentCumulativeTrue;
+	}
+
+	public ReinforcementLearner getLearner() {
+	    return learner;
+	}
+	
+//-USEFUL-FUNCTIONS------------------------------------------------------------------------------	
+/** Calculates an aggregate Marginal Cost function value for all GenCos */
+/*	private void calculateMarginalCost(){
+		for (int hour=0; hour<market.Hours; hour++){
+			//double MC = 0d;
+			
+			// if (id.equals("genco1")){
+				 	MC =MC+reportedSupplyOffer.get("aR") + 2*reportedSupplyOffer.get("bR") * commitment.get("commit"+hour);
+				    //MC =MC+trueSupplyOffer.get("aT") + 2*trueSupplyOffer.get("bT") * commitment.get("commit"+hour);
+				 	if ((int)market.schedule.getSteps()==364)
+					    System.out.println((int)market.schedule.getSteps()+"  "+hour+" "+MC);					
+				//	}			
+		 }			
+	}
+*/
+	
+//------------------------------------------------------------------------------------------------------------------------------------------    	   
+	/*	public String toString()
+		{
+			return this.id+ ", daily profit:" + this.dailyProfit + ", daily net earning:" + this.dailyNetEarnings +
+			", daily revenue:" + this.dailyRevenue;
+		}
+	*/
+	
+//------------------------------------------------------------------------------------------------------------------------------------------    	   
+/*	    private void updateActionProbabilities(){
+		      REPolicy policy = (REPolicy)learner.getPolicy();
+		      double [] dProbability=policy.getProbabilities();
+		      
+		      boolean bConverged=true;
+		      for(int i=0; i<adListNew.size(); i++){
+		          oldActionProbability[i]=newActionProbability[i];
+		          newActionProbability[i]=dProbability[i];
+		         if((bConverged)&&(Math.abs(newActionProbability[i]-oldActionProbability[i])>dActionProbability)){
+		              bConverged=false;
+		              iCheckDayLengthCount=0;
+		              bActionProbabilityConverge=false;
+		          }
+		      }
+		      
+		      if(bConverged){
+		          iCheckDayLengthCount++;
+		          if(iCheckDayLengthCount>iCheckDayLength)
+		              bActionProbabilityConverge=true;
+		      }
+		 }
+	//------------------------------------------------------------------------------------------------------------------------------------------    	   
+		  private void updateLearningResult(){		      
+		      boolean bConverged=true;		      
+		      if(Math.abs(oldLearningResult[0]-aR)>dLearningCheckDifference)
+		          bConverged=false;
+		      
+		      if(Math.abs(oldLearningResult[1]-bR)>dLearningCheckDifference)
+		          bConverged=false;
+		      
+		      if(Math.abs(oldLearningResult[2]-capRU)>dLearningCheckDifference)
+		          bConverged=false;
+		      
+		      oldLearningResult[0]=aR;
+		      oldLearningResult[1]=bR;
+		      oldLearningResult[2]=capRU;
+		      
+		      if(bConverged){
+		          iLearningCheckDayLengthCount++;
+		          if(iLearningCheckDayLengthCount>iLearningCheckDayLength)
+		              bLearningCheckConverge=true;
+		      }
+		      else{
+		          iLearningCheckDayLengthCount=0;
+		          bLearningCheckConverge=false;
+		      }
+		  }
+//------------------------------------------------------------------------------------------------------------------------------------------    	   
+
+		  private void updateDailyNetEarningResult(){		      
+		      boolean bConverged=true;	      
+		      for(int i=0; i<iDailyNetEarningDayLengthCount; i++){
+		          if(Math.abs(oldDailyNetEarningResult[i]-dailyNetEarnings)>dDailyNetEarningThreshold){
+		              bConverged=false;
+		              break;
+		          }
+		      }
+		      
+		      if(bConverged){
+		          iDailyNetEarningDayLengthCount++;
+		          if(iDailyNetEarningDayLengthCount>=iDailyNetEarningDayLength){
+		              bDailyNetEarningConverge=true;
+		              iDailyNetEarningDayLengthCount=iDailyNetEarningDayLength;
+		              
+		              for(int j=0; j<iDailyNetEarningDayLengthCount-1; j++){
+		                  oldDailyNetEarningResult[j]=oldDailyNetEarningResult[j+1];
+		              }
+		              oldDailyNetEarningResult[iDailyNetEarningDayLengthCount-1]=dailyNetEarnings;
+		          }
+		          else
+		              oldDailyNetEarningResult[iDailyNetEarningDayLengthCount-1]=dailyNetEarnings;
+		      }
+		      else{
+		          oldDailyNetEarningResult[0]=dailyNetEarnings;
+		          iDailyNetEarningDayLengthCount=0;
+		          bDailyNetEarningConverge=false;
+		      }
+		  }
+*/		
+} 
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
